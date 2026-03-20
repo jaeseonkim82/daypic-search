@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 
 type Artist = {
   id: string;
@@ -31,9 +32,9 @@ type SavedArtist = {
   image: string;
 };
 
-const services = ["본식스냅", "서브스냅", "영상촬영", "아이폰스냅", "돌스냅"];
+const SERVICES = ["본식스냅", "서브스냅", "영상촬영", "아이폰스냅", "돌스냅"];
 
-const regions = [
+const REGIONS = [
   "서울",
   "경기",
   "인천",
@@ -46,9 +47,9 @@ const regions = [
   "충청도",
 ];
 
-const prices = ["10~50만원", "50~100만원", "100~150만원", "150~200만원"];
+const PRICES = ["10~50만원", "50~100만원", "100~150만원", "150~200만원"];
 
-const fallbackImages = [
+const FALLBACK_IMAGES = [
   "https://images.unsplash.com/photo-1511285560929-80b456fea0bc?auto=format&fit=crop&w=1200&q=80",
   "https://images.unsplash.com/photo-1522673607200-164d1b6ce486?auto=format&fit=crop&w=1200&q=80",
   "https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=1200&q=80",
@@ -57,24 +58,25 @@ const fallbackImages = [
   "https://images.unsplash.com/photo-1520854221256-17451cc331bf?auto=format&fit=crop&w=1200&q=80",
 ];
 
-const defaultKeywords = [
+const DEFAULT_KEYWORDS = [
   "친절",
-  "편안함",
-  "빠른진행",
-  "소통좋음",
   "자연스러움",
-  "센스있음",
+  "편안한 진행",
+  "소통 좋음",
+  "감성 톤",
+  "센스 있음",
 ];
 
 const RECENT_STORAGE_KEY = "daypic_recent_artists";
 const FAVORITE_STORAGE_KEY = "daypic_favorite_artists";
+const DETAIL_STORAGE_KEY = "daypic_artist_detail_cache";
 
-function joinLabel(value: string[] | string) {
-  if (Array.isArray(value)) return value.join(" · ");
-  return value || "";
+function joinLabel(value: string[] | string | undefined) {
+  if (!value) return "";
+  return Array.isArray(value) ? value.join(" · ") : value;
 }
 
-function normalizeArray(value: string[] | string | undefined) {
+function normalizeArray(value: string[] | string | undefined): string[] {
   if (!value) return [];
   return Array.isArray(value) ? value : [value];
 }
@@ -108,7 +110,9 @@ function buildSavedArtist(artist: CardArtist): SavedArtist {
   };
 }
 
-export default function Home() {
+export default function HomePage() {
+  const router = useRouter();
+
   const [date, setDate] = useState("");
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [region, setRegion] = useState("");
@@ -118,26 +122,26 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [message, setMessage] = useState(
-    "예식 날짜를 입력하면 촬영 가능한 작가를 바로 찾아볼 수 있어요."
+    "예식 날짜와 조건을 입력하면 촬영 가능한 작가를 바로 찾아볼 수 있어."
   );
+
+  const [recentArtists, setRecentArtists] = useState<SavedArtist[]>([]);
+  const [favoriteArtists, setFavoriteArtists] = useState<SavedArtist[]>([]);
 
   const [recentOpen, setRecentOpen] = useState(true);
   const [favoriteOpen, setFavoriteOpen] = useState(false);
   const [serviceDropdownOpen, setServiceDropdownOpen] = useState(false);
-
-  const [recentArtists, setRecentArtists] = useState<SavedArtist[]>([]);
-  const [favoriteArtists, setFavoriteArtists] = useState<SavedArtist[]>([]);
 
   const serviceDropdownRef = useRef<HTMLDivElement | null>(null);
   const favoriteDropdownRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     setRecentArtists(safeParseStorage<SavedArtist[]>(RECENT_STORAGE_KEY, []));
-    setFavoriteArtists(safeParseStorage(FAVORITE_STORAGE_KEY, []));
+    setFavoriteArtists(safeParseStorage<SavedArtist[]>(FAVORITE_STORAGE_KEY, []));
   }, []);
 
   useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
+    function handleOutsideClick(event: MouseEvent) {
       const target = event.target as Node;
 
       if (
@@ -155,26 +159,22 @@ export default function Home() {
       }
     }
 
-    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("mousedown", handleOutsideClick);
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("mousedown", handleOutsideClick);
     };
   }, []);
 
   const cards = useMemo<CardArtist[]>(() => {
-    return artists.map((artist, index) => {
-      const normalizedKeywords =
+    return artists.map((artist, index) => ({
+      ...artist,
+      image: artist.image || FALLBACK_IMAGES[index % FALLBACK_IMAGES.length],
+      rating: artist.rating ?? 4.8,
+      keywords:
         artist.keywords && artist.keywords.length > 0
           ? artist.keywords.slice(0, 6)
-          : defaultKeywords;
-
-      return {
-        ...artist,
-        image: artist.image || fallbackImages[index % fallbackImages.length],
-        rating: artist.rating ?? 4.8,
-        keywords: normalizedKeywords,
-      };
-    });
+          : DEFAULT_KEYWORDS,
+    }));
   }, [artists]);
 
   const selectedServiceLabel = useMemo(() => {
@@ -183,8 +183,15 @@ export default function Home() {
     return `${selectedServices[0]} 외 ${selectedServices.length - 1}`;
   }, [selectedServices]);
 
+  const heroCountLabel = useMemo(() => {
+    if (!hasSearched) return "실시간";
+    return `${cards.length}명`;
+  }, [cards.length, hasSearched]);
+
   const isFavorite = useCallback(
-    (artistId: string) => favoriteArtists.some((artist) => artist.id === artistId),
+    (artistId: string) => {
+      return favoriteArtists.some((artist) => artist.id === artistId);
+    },
     [favoriteArtists]
   );
 
@@ -192,24 +199,23 @@ export default function Home() {
     if (!date) {
       setArtists([]);
       setHasSearched(false);
-      setMessage("먼저 예식 날짜를 입력해줘요.");
+      setMessage("먼저 예식 날짜를 입력해줘.");
       return;
     }
 
     setLoading(true);
     setHasSearched(true);
-    setMessage("가능한 작가를 찾는 중이예요...");
+    setMessage("가능한 작가를 찾는 중이야...");
 
     try {
       const params = new URLSearchParams();
-
       params.set("date", date);
 
       if (region) params.set("region", region);
       if (price) params.set("price", price);
 
-      selectedServices.forEach((item) => {
-        params.append("service", item);
+      selectedServices.forEach((service) => {
+        params.append("service", service);
       });
 
       const response = await fetch(`/api/search?${params.toString()}`, {
@@ -219,33 +225,33 @@ export default function Home() {
       const data = await response.json();
 
       if (!response.ok || !data.ok) {
-        throw new Error(data.message || "검색 중 오류가 발생했어요.");
+        throw new Error(data.message || "검색 중 오류가 발생했어.");
       }
 
       const nextArtists: Artist[] = Array.isArray(data.artists) ? data.artists : [];
       setArtists(nextArtists);
 
       if (nextArtists.length === 0) {
-        setMessage("조건에 맞는 작가가 없었어요.");
+        setMessage("조건에 맞는 작가가 없어.");
       } else {
-        setMessage(`총 ${nextArtists.length}명의 작가를 찾았어요.`);
+        setMessage(`총 ${nextArtists.length}명의 작가를 찾았어.`);
       }
     } catch (error) {
       console.error(error);
       setArtists([]);
       setMessage(
-        error instanceof Error ? error.message : "알 수 없는 오류가 발생했어요."
+        error instanceof Error ? error.message : "알 수 없는 오류가 발생했어."
       );
     } finally {
       setLoading(false);
     }
-  }, [date, selectedServices, region, price]);
+  }, [date, region, price, selectedServices]);
 
   useEffect(() => {
-    if (!date) return;
     if (!hasSearched) return;
+    if (!date) return;
     handleSearch();
-  }, [selectedServices, region, price, date, hasSearched, handleSearch]);
+  }, [date, region, price, selectedServices, hasSearched, handleSearch]);
 
   function toggleService(serviceName: string) {
     setSelectedServices((prev) => {
@@ -270,18 +276,40 @@ export default function Home() {
     saveStorage(RECENT_STORAGE_KEY, nextRecent);
   }
 
-  function handleCardClick(artist: CardArtist) {
-    if (!artist.portfolio) return;
-    saveRecentArtist(artist);
-    window.open(artist.portfolio, "_blank", "noopener,noreferrer");
+  function saveArtistDetail(artist: CardArtist) {
+    const current = safeParseStorage<Record<string, CardArtist>>(
+      DETAIL_STORAGE_KEY,
+      {}
+    );
+
+    const next = {
+      ...current,
+      [artist.id]: artist,
+    };
+
+    saveStorage(DETAIL_STORAGE_KEY, next);
   }
 
-  function handlePortfolioButtonClick(
+  function goToArtistDetail(artist: CardArtist) {
+    saveRecentArtist(artist);
+    saveArtistDetail(artist);
+    router.push(`/artists/${artist.id}`);
+  }
+
+  function handleCardClick(artist: CardArtist) {
+    goToArtistDetail(artist);
+  }
+
+  function handlePortfolioClick(
     event: React.MouseEvent<HTMLButtonElement>,
     artist: CardArtist
   ) {
     event.stopPropagation();
-    handleCardClick(artist);
+
+    if (!artist.portfolio) return;
+
+    saveRecentArtist(artist);
+    window.open(artist.portfolio, "_blank", "noopener,noreferrer");
   }
 
   function handleToggleFavorite(
@@ -314,264 +342,341 @@ export default function Home() {
     saveStorage(FAVORITE_STORAGE_KEY, nextFavorites);
   }
 
-  return (
-    <main className="min-h-screen bg-[#f6f3fb] text-[#25213d]">
-      <header className="border-b border-[#e8e1f2] bg-[#f6f3fb]">
-        <div className="mx-auto flex max-w-[1520px] items-center justify-between px-5 py-5 md:px-8">
-          <div className="flex items-center gap-8">
-            <a
-              href="http://ddaypic.com"
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center"
-            >
-              <span className="text-[28px] font-black tracking-[-0.05em] text-[#2b2a69]">
-                Day
-              </span>
-              <span className="text-[28px] font-black tracking-[-0.05em] text-[#7b5cf6]">
-                Pic
-              </span>
-            </a>
+  function handleChecklistClick() {
+    alert("결혼준비 체크리스트 페이지는 다음 단계에서 연결하면 돼.");
+  }
 
-            <nav className="hidden items-center gap-8 md:flex">
-              <span className="text-base font-medium text-[#4c4865]">이벤트참여</span>
-              <span className="text-base font-medium text-[#4c4865]">촬영후기</span>
-            </nav>
+  function handleTipsClick() {
+    alert("웨딩 꿀팁 페이지는 다음 단계에서 연결하면 돼.");
+  }
+
+  return (
+    <main className="min-h-screen bg-[#faf7fc] text-[#251f3c]">
+      <header className="sticky top-0 z-40 border-b border-[#ece4f5] bg-white/80 backdrop-blur">
+        <div className="mx-auto flex max-w-[1540px] items-center justify-between px-5 py-4 md:px-8">
+          <button
+            type="button"
+            onClick={() => router.push("/")}
+            className="inline-flex items-center gap-3"
+          >
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-[#7f5cff] to-[#d760b5] text-xl font-black text-white shadow-[0_12px_28px_rgba(120,90,255,0.25)]">
+              D
+            </div>
+
+            <div className="text-left">
+              <p className="text-[28px] font-black leading-none tracking-[-0.05em] text-[#2c2547]">
+                day<span className="text-[#8a63ff]">pic</span>
+              </p>
+              <p className="mt-1 text-[11px] font-medium text-[#8a82a7]">
+                wedding artist search
+              </p>
+            </div>
+          </button>
+
+          <div className="hidden items-center gap-3 md:flex">
+            <button
+              type="button"
+              onClick={handleChecklistClick}
+              className="rounded-full border border-[#e8ddf5] bg-white px-4 py-2 text-[13px] font-semibold text-[#665d82] transition hover:border-[#d7c7ee] hover:text-[#7b5cf6]"
+            >
+              결혼준비 체크리스트
+            </button>
+            <button
+              type="button"
+              onClick={handleTipsClick}
+              className="rounded-full border border-[#e8ddf5] bg-white px-4 py-2 text-[13px] font-semibold text-[#665d82] transition hover:border-[#d7c7ee] hover:text-[#7b5cf6]"
+            >
+              꿀팁 콘텐츠
+            </button>
           </div>
         </div>
       </header>
 
-      <div className="mx-auto max-w-[1520px] px-5 pb-10 pt-8 md:px-8">
-        <section className="mb-6">
-          <h1 className="text-4xl font-bold tracking-[-0.04em] text-[#272246] md:text-5xl">
-            작가찾기
-          </h1>
-          <p className="mt-3 max-w-3xl text-lg leading-8 text-[#6c6786]">
-            내 결혼식 날짜에 촬영 가능한 작가를 바로 찾아보세요.
-            <br className="hidden md:block" />
-            날짜를 입력하고 조건을 고르면 가능한 작가 리스트가 바로 바뀌어요.
-          </p>
-        </section>
+      <div className="mx-auto max-w-[1540px] px-5 pb-12 pt-6 md:px-8 md:pt-8">
+        <section className="relative overflow-hidden rounded-[40px] border border-[#eee5f7] bg-[radial-gradient(circle_at_top_left,_rgba(164,133,255,0.18),_transparent_32%),radial-gradient(circle_at_bottom_right,_rgba(244,170,214,0.18),_transparent_25%),linear-gradient(135deg,_#ffffff_0%,_#fcf9ff_45%,_#f8f3fb_100%)] p-5 shadow-[0_18px_50px_rgba(95,71,147,0.08)] md:p-8 xl:p-10">
+          <div className="grid gap-6 xl:grid-cols-[1.1fr_0.95fr]">
+            <div className="max-w-[700px]">
+              <p className="mb-3 inline-flex rounded-full border border-[#eadff8] bg-white/80 px-4 py-2 text-[12px] font-semibold text-[#7a5cf6] shadow-sm">
+                DAYPIC SEARCH
+              </p>
 
-        <section className="sticky top-0 z-30 mb-6 bg-[#f6f3fb] pb-3">
-          <div className="rounded-[24px] border border-[#e8e1f2] bg-white px-4 py-[12px] shadow-[0_10px_30px_rgba(60,50,100,0.06)] md:px-6">
-            <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1.05fr_1.1fr_0.8fr_0.8fr_116px] xl:items-center xl:gap-0">
-              <div className="xl:pr-4">
-                <input
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  className={`h-[44px] w-full rounded-[18px] border px-4 text-[16px] text-[#2c2843] outline-none transition ${
-                    date
-                      ? "border-[#7b5cf6] bg-[#faf7ff] shadow-[0_0_0_3px_rgba(123,92,246,0.08)]"
-                      : "border-[#ece6f4] bg-[#fcfbfe]"
-                  }`}
-                />
-              </div>
+              <h1 className="text-[34px] font-black leading-[1.18] tracking-[-0.06em] text-[#2a2444] md:text-[56px]">
+                내 결혼식 촬영
+                <br />
+                가능한 작가 찾기
+              </h1>
 
-              <div
-                ref={serviceDropdownRef}
-                className="relative xl:border-l xl:border-[#eee7f5] xl:px-4"
-              >
+              <p className="mt-4 max-w-[560px] text-[15px] leading-7 text-[#6f6888] md:text-[17px]">
+                촬영 날짜와 조건을 입력하면 가능한 작가를 빠르게 검색할 수 있어.
+                데이픽에서 예식 분위기에 맞는 작가를 바로 찾아봐.
+              </p>
+
+              <div className="mt-7 max-w-[580px] rounded-[28px] border border-[#eee4f7] bg-white/95 p-4 shadow-[0_16px_36px_rgba(94,72,145,0.10)] md:p-5">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <input
+                    type="date"
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
+                    className={`h-[52px] w-full rounded-[16px] border px-4 text-[15px] text-[#2c2843] outline-none transition ${
+                      date
+                        ? "border-[#8a63ff] bg-[#faf7ff] shadow-[0_0_0_3px_rgba(138,99,255,0.08)]"
+                        : "border-[#ece5f5] bg-[#fcfbfe]"
+                    }`}
+                  />
+
+                  <div ref={serviceDropdownRef} className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setServiceDropdownOpen((prev) => !prev)}
+                      className={`flex h-[52px] w-full items-center justify-between rounded-[16px] border px-4 text-[15px] transition ${
+                        selectedServices.length > 0 || serviceDropdownOpen
+                          ? "border-[#8a63ff] bg-[#faf7ff] text-[#2c2843] shadow-[0_0_0_3px_rgba(138,99,255,0.08)]"
+                          : "border-[#ece5f5] bg-[#fcfbfe] text-[#2c2843]"
+                      }`}
+                    >
+                      <span className="truncate">{selectedServiceLabel}</span>
+                      <span className="ml-3 shrink-0 text-[#7a7297]">
+                        {serviceDropdownOpen ? "⌃" : "⌄"}
+                      </span>
+                    </button>
+
+                    {serviceDropdownOpen && (
+                      <div className="absolute left-0 right-0 top-[58px] z-30 rounded-[20px] border border-[#e8dff2] bg-white p-4 shadow-[0_18px_40px_rgba(70,55,110,0.14)]">
+                        <div className="mb-3 flex items-center justify-between">
+                          <p className="text-[14px] font-semibold text-[#2b2745]">
+                            촬영 서비스 선택
+                          </p>
+                          <button
+                            type="button"
+                            onClick={clearServices}
+                            className="text-[13px] font-medium text-[#7b5cf6]"
+                          >
+                            초기화
+                          </button>
+                        </div>
+
+                        <div className="space-y-2">
+                          {SERVICES.map((item) => {
+                            const active = selectedServices.includes(item);
+
+                            return (
+                              <button
+                                key={item}
+                                type="button"
+                                onClick={() => toggleService(item)}
+                                className={`flex w-full items-center justify-between rounded-[14px] border px-3 py-3 text-left text-[14px] transition ${
+                                  active
+                                    ? "border-[#7b5cf6] bg-[#f5f0ff] text-[#4d33da]"
+                                    : "border-[#ece5f5] bg-[#fcfbfe] text-[#3e3858] hover:bg-[#f8f4fd]"
+                                }`}
+                              >
+                                <span>{item}</span>
+                                <span>{active ? "✓" : ""}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <select
+                    value={region}
+                    onChange={(e) => setRegion(e.target.value)}
+                    className={`h-[52px] w-full rounded-[16px] border px-4 text-[15px] text-[#2c2843] outline-none transition ${
+                      region
+                        ? "border-[#8a63ff] bg-[#faf7ff] shadow-[0_0_0_3px_rgba(138,99,255,0.08)]"
+                        : "border-[#ece5f5] bg-[#fcfbfe]"
+                    }`}
+                  >
+                    <option value="">지역</option>
+                    {REGIONS.map((item) => (
+                      <option key={item} value={item}>
+                        {item}
+                      </option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={price}
+                    onChange={(e) => setPrice(e.target.value)}
+                    className={`h-[52px] w-full rounded-[16px] border px-4 text-[15px] text-[#2c2843] outline-none transition ${
+                      price
+                        ? "border-[#8a63ff] bg-[#faf7ff] shadow-[0_0_0_3px_rgba(138,99,255,0.08)]"
+                        : "border-[#ece5f5] bg-[#fcfbfe]"
+                    }`}
+                  >
+                    <option value="">예산 범위</option>
+                    {PRICES.map((item) => (
+                      <option key={item} value={item}>
+                        {item}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 <button
                   type="button"
-                  onClick={() => setServiceDropdownOpen((prev) => !prev)}
-                  className={`flex h-[44px] w-full items-center justify-between rounded-[18px] border px-4 text-[16px] outline-none transition xl:border-0 xl:bg-transparent ${
-                    selectedServices.length > 0 || serviceDropdownOpen
-                      ? "border-[#7b5cf6] bg-[#faf7ff] text-[#2c2843] shadow-[0_0_0_3px_rgba(123,92,246,0.08)]"
-                      : "border-[#ece6f4] bg-[#fcfbfe] text-[#2c2843]"
+                  onClick={handleSearch}
+                  disabled={loading}
+                  className={`mt-4 h-[54px] w-full rounded-[16px] text-[16px] font-bold text-white transition ${
+                    loading
+                      ? "bg-[#a393cc]"
+                      : "bg-gradient-to-r from-[#7b5cf6] to-[#d75eb6] shadow-[0_16px_30px_rgba(123,92,246,0.25)] hover:-translate-y-[1px]"
                   }`}
                 >
-                  <span className="truncate">{selectedServiceLabel}</span>
-                  <span className="ml-3 shrink-0 text-[#756ea0]">
-                    {serviceDropdownOpen ? "⌃" : "⌄"}
-                  </span>
+                  {loading ? "작가 검색 중..." : "작가 검색"}
                 </button>
 
-                {serviceDropdownOpen && (
-                  <div className="absolute left-0 right-0 top-[52px] z-40 rounded-[20px] border border-[#e8e1f2] bg-white p-4 shadow-[0_18px_40px_rgba(60,50,100,0.14)] xl:left-4 xl:right-4">
-                    <div className="mb-3 flex items-center justify-between">
-                      <p className="text-[14px] font-semibold text-[#2b2745]">
-                        촬영 서비스 선택
-                      </p>
+                {(selectedServices.length > 0 || region || price) && (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {selectedServices.map((item) => (
+                      <button
+                        key={item}
+                        type="button"
+                        onClick={() => toggleService(item)}
+                        className="rounded-full bg-[#f1e9ff] px-3 py-1.5 text-[12px] font-medium text-[#6d46f6]"
+                      >
+                        {item} <span className="ml-1">✕</span>
+                      </button>
+                    ))}
+
+                    {region && (
                       <button
                         type="button"
-                        onClick={clearServices}
-                        className="text-[13px] font-medium text-[#7b5cf6] hover:opacity-80"
+                        onClick={() => setRegion("")}
+                        className="rounded-full bg-[#f1e9ff] px-3 py-1.5 text-[12px] font-medium text-[#6d46f6]"
                       >
-                        초기화
+                        {region} <span className="ml-1">✕</span>
                       </button>
-                    </div>
+                    )}
 
-                    <div className="space-y-2">
-                      {services.map((item) => {
-                        const active = selectedServices.includes(item);
-
-                        return (
-                          <button
-                            key={item}
-                            type="button"
-                            onClick={() => toggleService(item)}
-                            className={`flex w-full items-center justify-between rounded-[14px] border px-3 py-3 text-left text-[15px] transition ${
-                              active
-                                ? "border-[#7b5cf6] bg-[#f5f0ff] text-[#4c2fe0]"
-                                : "border-[#ece6f4] bg-[#fcfbfe] text-[#3b3653] hover:bg-[#f8f4fe]"
-                            }`}
-                          >
-                            <span>{item}</span>
-                            <span className="ml-3">{active ? "✓" : ""}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
+                    {price && (
+                      <button
+                        type="button"
+                        onClick={() => setPrice("")}
+                        className="rounded-full bg-[#f1e9ff] px-3 py-1.5 text-[12px] font-medium text-[#6d46f6]"
+                      >
+                        {price} <span className="ml-1">✕</span>
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
-
-              <div className="xl:border-l xl:border-[#eee7f5] xl:px-4">
-                <select
-                  value={region}
-                  onChange={(e) => setRegion(e.target.value)}
-                  className={`h-[44px] w-full rounded-[18px] border px-4 text-[16px] text-[#2c2843] outline-none transition xl:border-0 xl:bg-transparent ${
-                    region
-                      ? "border-[#7b5cf6] bg-[#faf7ff] shadow-[0_0_0_3px_rgba(123,92,246,0.08)]"
-                      : "border-[#ece6f4] bg-[#fcfbfe]"
-                  }`}
-                >
-                  <option value="">촬영 지역</option>
-                  {regions.map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="xl:border-l xl:border-[#eee7f5] xl:px-4">
-                <select
-                  value={price}
-                  onChange={(e) => setPrice(e.target.value)}
-                  className={`h-[44px] w-full rounded-[18px] border px-4 text-[16px] text-[#2c2843] outline-none transition xl:border-0 xl:bg-transparent ${
-                    price
-                      ? "border-[#7b5cf6] bg-[#faf7ff] shadow-[0_0_0_3px_rgba(123,92,246,0.08)]"
-                      : "border-[#ece6f4] bg-[#fcfbfe]"
-                  }`}
-                >
-                  <option value="">예산</option>
-                  {prices.map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="xl:pl-4">
-                <button
-                  onClick={handleSearch}
-                  disabled={loading}
-                  className={`h-[44px] w-full rounded-[18px] text-[15px] font-semibold text-white transition ${
-                    loading
-                      ? "bg-[#6c63a7]"
-                      : "bg-[#2f2d57] shadow-[0_10px_20px_rgba(47,45,87,0.18)] hover:-translate-y-[1px] hover:opacity-95"
-                  }`}
-                >
-                  {loading ? "검색 중" : "검색"}
-                </button>
-              </div>
             </div>
 
-            {(selectedServices.length > 0 || region || price) && (
-              <div className="mt-3 flex flex-wrap gap-2">
-                {selectedServices.map((item) => (
-                  <button
-                    key={item}
-                    type="button"
-                    onClick={() => toggleService(item)}
-                    className="inline-flex items-center rounded-full bg-[#f1eaff] px-3 py-1.5 text-[13px] font-medium text-[#6d46f6] transition hover:bg-[#eadfff]"
-                  >
-                    {item}
-                    <span className="ml-2">✕</span>
-                  </button>
-                ))}
-
-                {region && (
-                  <button
-                    type="button"
-                    onClick={() => setRegion("")}
-                    className="inline-flex items-center rounded-full bg-[#f1eaff] px-3 py-1.5 text-[13px] font-medium text-[#6d46f6] transition hover:bg-[#eadfff]"
-                  >
-                    {region}
-                    <span className="ml-2">✕</span>
-                  </button>
-                )}
-
-                {price && (
-                  <button
-                    type="button"
-                    onClick={() => setPrice("")}
-                    className="inline-flex items-center rounded-full bg-[#f1eaff] px-3 py-1.5 text-[13px] font-medium text-[#6d46f6] transition hover:bg-[#eadfff]"
-                  >
-                    {price}
-                    <span className="ml-2">✕</span>
-                  </button>
-                )}
+            <div className="grid gap-4 self-start">
+              <div className="flex min-h-[122px] items-center gap-4 rounded-[28px] border border-[#eee3f7] bg-white/95 p-5 shadow-[0_14px_30px_rgba(83,63,125,0.08)]">
+                <div className="flex h-16 w-16 items-center justify-center rounded-[22px] bg-gradient-to-br from-[#7b5cf6] to-[#b060ff] text-[28px] text-white shadow-[0_10px_24px_rgba(123,92,246,0.24)]">
+                  👤
+                </div>
+                <div>
+                  <p className="text-[13px] font-semibold uppercase tracking-[0.08em] text-[#9d91b4]">
+                    Registered
+                  </p>
+                  <p className="mt-1 text-[24px] font-black tracking-[-0.05em] text-[#2c2646]">
+                    조건 맞는 작가 <span className="text-[#8a63ff]">{heroCountLabel}</span>
+                  </p>
+                  <p className="mt-1 text-[14px] text-[#786f92]">
+                    검색 결과 기준으로 바로 확인 가능
+                  </p>
+                </div>
               </div>
-            )}
+
+              <button
+                type="button"
+                onClick={handleChecklistClick}
+                className="flex min-h-[122px] items-center gap-4 rounded-[28px] border border-[#eee3f7] bg-white/95 p-5 text-left shadow-[0_14px_30px_rgba(83,63,125,0.08)] transition hover:-translate-y-[2px]"
+              >
+                <div className="flex h-16 w-16 items-center justify-center rounded-[22px] bg-gradient-to-br from-[#845ef7] to-[#dc68b7] text-[26px] text-white shadow-[0_10px_24px_rgba(123,92,246,0.24)]">
+                  ✓
+                </div>
+                <div>
+                  <p className="text-[13px] font-semibold uppercase tracking-[0.08em] text-[#9d91b4]">
+                    Checklist
+                  </p>
+                  <p className="mt-1 text-[24px] font-black tracking-[-0.05em] text-[#2c2646]">
+                    결혼준비 체크리스트
+                  </p>
+                  <p className="mt-1 text-[14px] text-[#786f92]">
+                    준비 항목을 한 번에 확인할 수 있어
+                  </p>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleTipsClick}
+                className="flex min-h-[122px] items-center gap-4 rounded-[28px] border border-[#eee3f7] bg-white/95 p-5 text-left shadow-[0_14px_30px_rgba(83,63,125,0.08)] transition hover:-translate-y-[2px]"
+              >
+                <div className="flex h-16 w-16 items-center justify-center rounded-[22px] bg-gradient-to-br from-[#8a63ff] to-[#f064b7] text-[26px] text-white shadow-[0_10px_24px_rgba(123,92,246,0.24)]">
+                  ✦
+                </div>
+                <div>
+                  <p className="text-[13px] font-semibold uppercase tracking-[0.08em] text-[#9d91b4]">
+                    Tips
+                  </p>
+                  <p className="mt-1 text-[24px] font-black tracking-[-0.05em] text-[#2c2646]">
+                    더 완벽한 결혼식을 위한 꿀팁
+                  </p>
+                  <p className="mt-1 text-[14px] text-[#786f92]">
+                    예산, 촬영 준비, 동선 팁까지 확인
+                  </p>
+                </div>
+              </button>
+            </div>
           </div>
         </section>
 
-        <section className="grid gap-6 lg:grid-cols-[240px_minmax(0,1fr)]">
-          <aside className="lg:sticky lg:top-[112px] lg:self-start">
-            <div className="rounded-[22px] border border-[#e8e1f2] bg-[#f8f5fc] p-4">
+        <section className="mt-8 grid gap-6 lg:grid-cols-[250px_minmax(0,1fr)]">
+          <aside className="lg:sticky lg:top-[104px] lg:self-start">
+            <div className="rounded-[24px] border border-[#e8e0f3] bg-[#f7f3fb] p-4 shadow-[0_10px_26px_rgba(80,60,120,0.05)]">
               <div
-                onClick={() => setRecentOpen(!recentOpen)}
-                className={`mb-3 flex cursor-pointer items-center justify-between rounded-[16px] px-2 py-2 transition ${
-                  recentOpen ? "bg-[#f1eaff]" : ""
+                onClick={() => setRecentOpen((prev) => !prev)}
+                className={`mb-3 flex cursor-pointer items-center justify-between rounded-[16px] px-2 py-2 ${
+                  recentOpen ? "bg-[#f1e9ff]" : ""
                 }`}
               >
                 <div className="flex items-center gap-2">
-                  <span className="text-[15px] text-[#6d46f6]">≡</span>
-                  <h3 className="text-[19px] font-bold tracking-[-0.03em] text-[#2b2745]">
+                  <span className="text-[#6d46f6]">≡</span>
+                  <h3 className="text-[18px] font-bold tracking-[-0.03em] text-[#2b2745]">
                     최근본작가
                   </h3>
                 </div>
-                <span className="text-[#6f6892]">{recentOpen ? "⌄" : "›"}</span>
+                <span className="text-[#6f688d]">{recentOpen ? "⌄" : "›"}</span>
               </div>
 
               {recentOpen && (
-                <div className="space-y-2.5">
+                <div className="space-y-3">
                   {recentArtists.length > 0 ? (
                     recentArtists.map((artist) => (
-                      <a
+                      <button
                         key={artist.id}
-                        href={artist.portfolio || "#"}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="flex items-center rounded-[16px] border border-[#ebe4f4] bg-white px-3 py-3 transition hover:-translate-y-[1px] hover:border-[#d9cdf1] hover:shadow-[0_10px_24px_rgba(60,50,100,0.08)]"
+                        type="button"
+                        onClick={() => router.push(`/artists/${artist.id}`)}
+                        className="flex w-full items-center gap-3 rounded-[16px] border border-[#ebe3f4] bg-white px-3 py-3 text-left transition hover:-translate-y-[1px] hover:shadow-[0_10px_22px_rgba(60,50,100,0.08)]"
                       >
-                        <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 overflow-hidden rounded-full bg-[#f1ebf8]">
-                            <img
-                              src={artist.image}
-                              alt={artist.name}
-                              className="h-full w-full object-cover"
-                            />
-                          </div>
-                          <div className="min-w-0">
-                            <span className="block truncate text-[13px] font-medium text-[#3f3a59]">
-                              {artist.name}
-                            </span>
-                            <span className="block truncate text-[11px] text-[#7a7393]">
-                              {joinLabel(artist.region)}
-                            </span>
-                          </div>
+                        <div className="h-11 w-11 overflow-hidden rounded-full bg-[#f1ebf8]">
+                          <img
+                            src={artist.image}
+                            alt={artist.name}
+                            className="h-full w-full object-cover"
+                          />
                         </div>
-                      </a>
+
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[13px] font-semibold text-[#393453]">
+                            {artist.name}
+                          </p>
+                          <p className="truncate text-[11px] text-[#7b7396]">
+                            {joinLabel(artist.region)}
+                          </p>
+                        </div>
+                      </button>
                     ))
                   ) : (
-                    <div className="rounded-[16px] border border-dashed border-[#ddd2ef] bg-white px-4 py-5 text-[12px] text-[#837b9c]">
-                      아직 최근 본 작가가 없어요.
+                    <div className="rounded-[16px] border border-dashed border-[#ddd1ee] bg-white px-4 py-5 text-[12px] text-[#847b9d]">
+                      아직 최근 본 작가가 없어.
                     </div>
                   )}
                 </div>
@@ -580,18 +685,22 @@ export default function Home() {
           </aside>
 
           <div>
-            <div className="mb-3 flex flex-col gap-3 border-b border-[#e7e0f0] pb-3 md:flex-row md:items-start md:justify-between">
-              <p className="text-[18px] font-semibold tracking-[-0.04em] text-[#2a2645] md:text-[21px]">
-                {message}
-              </p>
+            <div className="mb-4 flex flex-col gap-3 border-b border-[#e7e0f0] pb-4 md:flex-row md:items-start md:justify-between">
+              <div>
+                <p className="text-[22px] font-black tracking-[-0.04em] text-[#2a2645]">
+                  검색 결과
+                </p>
+                <p className="mt-2 text-[15px] text-[#6f6886]">{message}</p>
+              </div>
 
               <div ref={favoriteDropdownRef} className="relative">
                 <button
+                  type="button"
                   onClick={() => setFavoriteOpen((prev) => !prev)}
-                  className={`inline-flex h-9 items-center justify-center rounded-[14px] px-4 text-[13px] font-semibold transition ${
+                  className={`inline-flex h-10 items-center justify-center rounded-[14px] px-4 text-[13px] font-semibold transition ${
                     favoriteOpen
                       ? "bg-[#6d46f6] text-white shadow-[0_12px_24px_rgba(109,70,246,0.2)]"
-                      : "bg-[#f1eaff] text-[#6d46f6] hover:bg-[#e8ddff]"
+                      : "bg-[#f1eaff] text-[#6d46f6] hover:bg-[#eadfff]"
                   }`}
                 >
                   <span className="mr-2">❤</span>
@@ -600,7 +709,7 @@ export default function Home() {
                 </button>
 
                 {favoriteOpen && (
-                  <div className="absolute right-0 top-[44px] z-30 w-[285px] rounded-[20px] border border-[#e8e1f2] bg-white p-4 shadow-[0_16px_40px_rgba(60,50,100,0.12)]">
+                  <div className="absolute right-0 top-[46px] z-30 w-[300px] rounded-[20px] border border-[#e8e1f2] bg-white p-4 shadow-[0_16px_40px_rgba(60,50,100,0.12)]">
                     <div className="mb-3 flex items-center justify-between">
                       <h4 className="text-[14px] font-semibold text-[#2b2745]">
                         찜한 작가
@@ -613,29 +722,32 @@ export default function Home() {
                     <div className="space-y-3">
                       {favoriteArtists.length > 0 ? (
                         favoriteArtists.map((artist) => (
-                          <a
+                          <div
                             key={artist.id}
-                            href={artist.portfolio || "#"}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="flex items-center gap-3 rounded-[14px] border border-[#efe8f7] bg-[#fcfbfe] px-3 py-3 transition hover:border-[#ddcff2] hover:bg-white"
+                            className="flex items-center gap-3 rounded-[14px] border border-[#efe8f7] bg-[#fcfbfe] px-3 py-3"
                           >
-                            <div className="h-10 w-10 overflow-hidden rounded-full">
-                              <img
-                                src={artist.image}
-                                alt={artist.name}
-                                className="h-full w-full object-cover"
-                              />
-                            </div>
+                            <button
+                              type="button"
+                              onClick={() => router.push(`/artists/${artist.id}`)}
+                              className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                            >
+                              <div className="h-10 w-10 overflow-hidden rounded-full">
+                                <img
+                                  src={artist.image}
+                                  alt={artist.name}
+                                  className="h-full w-full object-cover"
+                                />
+                              </div>
 
-                            <div className="min-w-0 flex-1">
-                              <p className="truncate text-[13px] font-medium text-[#3f3a59]">
-                                {artist.name}
-                              </p>
-                              <p className="truncate text-[11px] text-[#7a7393]">
-                                {joinLabel(artist.service)}
-                              </p>
-                            </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-[13px] font-medium text-[#3f3a59]">
+                                  {artist.name}
+                                </p>
+                                <p className="truncate text-[11px] text-[#7a7393]">
+                                  {joinLabel(artist.service)}
+                                </p>
+                              </div>
+                            </button>
 
                             <button
                               type="button"
@@ -645,7 +757,7 @@ export default function Home() {
                             >
                               ❤
                             </button>
-                          </a>
+                          </div>
                         ))
                       ) : (
                         <div className="rounded-[14px] border border-dashed border-[#e5dcf2] px-4 py-5 text-[12px] text-[#837b9c]">
@@ -658,7 +770,7 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
               {cards.length > 0 ? (
                 cards.map((artist) => {
                   const favorite = isFavorite(artist.id);
@@ -667,94 +779,95 @@ export default function Home() {
                     <article
                       key={artist.id}
                       onClick={() => handleCardClick(artist)}
-                      className={`group overflow-hidden rounded-[18px] border bg-white transition ${
-                        artist.portfolio
-                          ? "cursor-pointer border-[#e6dff0] shadow-[0_5px_18px_rgba(60,50,100,0.05)] hover:-translate-y-[3px] hover:border-[#d7c9f0] hover:shadow-[0_14px_30px_rgba(60,50,100,0.1)]"
-                          : "cursor-default border-[#ece6f4] shadow-[0_4px_14px_rgba(60,50,100,0.04)]"
-                      }`}
+                      className="group cursor-pointer overflow-hidden rounded-[26px] border border-[#e8dff3] bg-white shadow-[0_8px_24px_rgba(60,50,100,0.06)] transition hover:-translate-y-[4px] hover:shadow-[0_22px_40px_rgba(60,50,100,0.12)]"
                     >
-                      <div className="relative aspect-[16/10] w-full overflow-hidden bg-[#f1ebf8]">
+                      <div className="relative aspect-[16/10] overflow-hidden bg-[#f1ebf8]">
                         <img
                           src={artist.image}
                           alt={artist.name}
-                          className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.04]"
+                          className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.05]"
                         />
 
                         <button
                           type="button"
                           onClick={(event) => handleToggleFavorite(event, artist)}
-                          className={`absolute right-3 top-3 z-10 inline-flex h-8 w-8 items-center justify-center rounded-full border backdrop-blur-sm transition ${
+                          className={`absolute right-3 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full border backdrop-blur-sm transition ${
                             favorite
-                              ? "border-[#ffb6d0] bg-[#ffedf5] text-[#ff5c9a]"
+                              ? "border-[#ffbdd4] bg-[#ffedf5] text-[#ff5c9a]"
                               : "border-white/70 bg-white/85 text-[#6a617f] hover:bg-white"
                           }`}
                           aria-label={favorite ? "찜 해제" : "찜하기"}
                         >
                           {favorite ? "❤" : "♡"}
                         </button>
-
-                        {artist.portfolio && (
-                          <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/45 to-transparent px-3 pb-3 pt-10 opacity-0 transition group-hover:opacity-100">
-                            <span className="inline-flex items-center rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-semibold text-[#2f2d57]">
-                              포트폴리오 보기
-                              <span className="ml-2">›</span>
-                            </span>
-                          </div>
-                        )}
                       </div>
 
-                      <div className="p-3">
-                        <h3 className="line-clamp-1 text-[16px] font-semibold tracking-[-0.03em] text-[#272347]">
+                      <div className="p-4">
+                        <h3 className="truncate text-[19px] font-bold tracking-[-0.03em] text-[#272347]">
                           {artist.name}
                         </h3>
 
-                        <p className="mt-1 line-clamp-1 text-[12px] text-[#5f587a]">
-                          {joinLabel(artist.region)} · {joinLabel(artist.service)}
+                        <p className="mt-1 truncate text-[13px] text-[#6a6384]">
+                          {joinLabel(artist.region)}
                         </p>
 
-                        <p className="mt-1 text-[12px] font-medium text-[#4b4468]">
+                        <p className="mt-1 truncate text-[13px] text-[#8d63ff]">
+                          {joinLabel(artist.service)}
+                        </p>
+
+                        <p className="mt-3 text-[14px] font-semibold text-[#4b4468]">
                           {artist.price}
                         </p>
 
-                        <div className="mt-2 flex items-center gap-2 text-[12px] text-[#6d6786]">
+                        <div className="mt-3 text-[13px] text-[#6d6786]">
                           <span className="font-semibold text-[#f3a51c]">
                             ★ {artist.rating.toFixed(1)}
                           </span>
                         </div>
 
-                        <div className="mt-2.5 grid grid-cols-3 gap-1.5">
-                          {artist.keywords.slice(0, 6).map((keyword) => (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {artist.keywords.slice(0, 4).map((keyword) => (
                             <span
                               key={keyword}
-                              className="flex h-[20px] items-center justify-center rounded-full bg-[#f1eaff] px-1 text-[9px] font-medium leading-none text-[#7652ea]"
+                              className="rounded-full bg-[#f2ebff] px-2.5 py-1 text-[11px] font-medium text-[#7652ea]"
                             >
                               {keyword}
                             </span>
                           ))}
                         </div>
 
-                        <button
-                          type="button"
-                          onClick={(event) => handlePortfolioButtonClick(event, artist)}
-                          disabled={!artist.portfolio}
-                          className={`mt-2.5 inline-flex h-8 w-full items-center justify-center rounded-[12px] text-[12px] font-semibold transition ${
-                            artist.portfolio
-                              ? "bg-[#6d46f6] text-white hover:opacity-95"
-                              : "bg-[#ece8f6] text-[#9a93b1]"
-                          }`}
-                        >
-                          {artist.portfolio ? "포트폴리오 보기" : "포트폴리오 준비중"}
-                          <span className="ml-2">›</span>
-                        </button>
+                        <div className="mt-4 grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              goToArtistDetail(artist);
+                            }}
+                            className="h-10 rounded-[14px] bg-[#f3effb] text-[13px] font-semibold text-[#5b47c8] transition hover:bg-[#ece3ff]"
+                          >
+                            상세페이지
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={(event) => handlePortfolioClick(event, artist)}
+                            disabled={!artist.portfolio}
+                            className={`h-10 rounded-[14px] text-[13px] font-semibold transition ${
+                              artist.portfolio
+                                ? "bg-[#6d46f6] text-white hover:opacity-95"
+                                : "bg-[#ece8f6] text-[#9a93b1]"
+                            }`}
+                          >
+                            {artist.portfolio ? "포트폴리오" : "준비중"}
+                          </button>
+                        </div>
                       </div>
                     </article>
                   );
                 })
               ) : (
-                <div className="col-span-full rounded-[24px] border border-[#e6dff0] bg-white p-10 text-center text-lg text-[#756f8d]">
-                  {date
-                    ? "아직 표시할 검색 결과가 없어요."
-                    : "먼저 예식 날짜를 입력해줘요."}
+                <div className="col-span-full rounded-[24px] border border-[#e6dff0] bg-white p-10 text-center text-[17px] text-[#756f8d]">
+                  {date ? "아직 표시할 검색 결과가 없어." : "먼저 예식 날짜를 입력해줘."}
                 </div>
               )}
             </div>
