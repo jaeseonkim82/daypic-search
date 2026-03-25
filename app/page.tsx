@@ -122,7 +122,7 @@ export default function HomePage() {
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [message, setMessage] = useState(
-    "예식 날짜와 조건을 입력하면 촬영 가능한 작가를 바로 찾아볼 수 있어."
+    "예식 날짜와 조건을 입력하면 촬영 가능한 작가를 바로 찾아볼 수 있어요."
   );
 
   const [recentArtists, setRecentArtists] = useState<SavedArtist[]>([]);
@@ -225,22 +225,22 @@ export default function HomePage() {
       const data = await response.json();
 
       if (!response.ok || !data.ok) {
-        throw new Error(data.message || "검색 중 오류가 발생했어.");
+        throw new Error(data.message || "검색 중 오류가 발생했어요.");
       }
 
       const nextArtists: Artist[] = Array.isArray(data.artists) ? data.artists : [];
       setArtists(nextArtists);
 
       if (nextArtists.length === 0) {
-        setMessage("조건에 맞는 작가가 없어.");
+        setMessage("조건에 맞는 작가가 없어요.");
       } else {
-        setMessage(`총 ${nextArtists.length}명의 작가를 찾았어.`);
+        setMessage(`총 ${nextArtists.length}명의 작가를 찾았어요.`);
       }
     } catch (error) {
       console.error(error);
       setArtists([]);
       setMessage(
-        error instanceof Error ? error.message : "알 수 없는 오류가 발생했어."
+        error instanceof Error ? error.message : "알 수 없는 오류가 발생했어요."
       );
     } finally {
       setLoading(false);
@@ -343,35 +343,27 @@ export default function HomePage() {
   }
 
   function handleChecklistClick() {
-    alert("결혼준비 체크리스트 페이지는 다음 단계에서 연결하면 돼.");
+    router.push("/checklist");
   }
 
   function handleTipsClick() {
-    alert("웨딩 꿀팁 페이지는 다음 단계에서 연결하면 돼.");
+    router.push("/tips");
   }
 
   return (
     <main className="min-h-screen bg-[#faf7fc] text-[#251f3c]">
       <header className="sticky top-0 z-40 border-b border-[#ece4f5] bg-white/80 backdrop-blur">
         <div className="mx-auto flex max-w-[1540px] items-center justify-between px-5 py-4 md:px-8">
-          <button
-            type="button"
-            onClick={() => router.push("/")}
-            className="inline-flex items-center gap-3"
-          >
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-[#7f5cff] to-[#d760b5] text-xl font-black text-white shadow-[0_12px_28px_rgba(120,90,255,0.25)]">
-              D
-            </div>
-
-            <div className="text-left">
-              <p className="text-[28px] font-black leading-none tracking-[-0.05em] text-[#2c2547]">
-                day<span className="text-[#8a63ff]">pic</span>
-              </p>
-              <p className="mt-1 text-[11px] font-medium text-[#8a82a7]">
-                wedding artist search
-              </p>
-            </div>
-          </button>
+          <a
+  href="https://ddaypic.com"
+  className="inline-flex items-center transition hover:opacity-80"
+>
+  <img
+    src="/daypic_logo.png"
+    alt="daypic logo"
+    className="h-11 w-auto object-contain"
+  />
+</a>
 
           <div className="hidden items-center gap-3 md:flex">
             <button
@@ -407,8 +399,8 @@ export default function HomePage() {
               </h1>
 
               <p className="mt-4 max-w-[560px] text-[15px] leading-7 text-[#6f6888] md:text-[17px]">
-                촬영 날짜와 조건을 입력하면 가능한 작가를 빠르게 검색할 수 있어.
-                데이픽에서 예식 분위기에 맞는 작가를 바로 찾아봐.
+                촬영 날짜와 조건을 입력하면 가능한 작가를 빠르게 검색할 수 있어요.
+                데이픽에서 예식 분위기에 맞는 작가를 바로 찾아봐요.
               </p>
 
               <div className="mt-7 max-w-[580px] rounded-[28px] border border-[#eee4f7] bg-white/95 p-4 shadow-[0_16px_36px_rgba(94,72,145,0.10)] md:p-5">
@@ -599,7 +591,7 @@ export default function HomePage() {
                     결혼준비 체크리스트
                   </p>
                   <p className="mt-1 text-[14px] text-[#786f92]">
-                    준비 항목을 한 번에 확인할 수 있어
+                    준비 항목을 한 번에 확인할 수 있어요
                   </p>
                 </div>
               </button>
@@ -676,7 +668,7 @@ export default function HomePage() {
                     ))
                   ) : (
                     <div className="rounded-[16px] border border-dashed border-[#ddd1ee] bg-white px-4 py-5 text-[12px] text-[#847b9d]">
-                      아직 최근 본 작가가 없어.
+                      아직 최근 본 작가가 없어요.
                     </div>
                   )}
                 </div>
@@ -761,7 +753,7 @@ export default function HomePage() {
                         ))
                       ) : (
                         <div className="rounded-[14px] border border-dashed border-[#e5dcf2] px-4 py-5 text-[12px] text-[#837b9c]">
-                          아직 찜한 작가가 없어.
+                          아직 찜한 작가가 없어요.
                         </div>
                       )}
                     </div>
@@ -867,7 +859,7 @@ export default function HomePage() {
                 })
               ) : (
                 <div className="col-span-full rounded-[24px] border border-[#e6dff0] bg-white p-10 text-center text-[17px] text-[#756f8d]">
-                  {date ? "아직 표시할 검색 결과가 없어." : "먼저 예식 날짜를 입력해줘."}
+                  {date ? "아직 표시할 검색 결과가 없어요." : "먼저 예식 날짜를 입력해줘요."}
                 </div>
               )}
             </div>
