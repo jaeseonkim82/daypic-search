@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type Artist = {
@@ -14,12 +14,8 @@ type Artist = {
   image?: string;
   rating?: number;
   keywords?: string[];
-};
-
-type CardArtist = Artist & {
-  image: string;
-  rating: number;
-  keywords: string[];
+  openchat_url?: string;
+  portfolio_images?: string[] | string;
 };
 
 type SavedArtist = {
@@ -30,6 +26,17 @@ type SavedArtist = {
   price: string;
   portfolio?: string;
   image: string;
+};
+
+type SearchPageState = {
+  date: string;
+  selectedServices: string[];
+  region: string;
+  price: string;
+  artists: Artist[];
+  hasSearched: boolean;
+  message: string;
+  scrollY: number;
 };
 
 const SERVICES = ["본식스냅", "서브스냅", "영상촬영", "아이폰스냅", "돌스냅"];
@@ -70,22 +77,33 @@ const DEFAULT_KEYWORDS = [
 const RECENT_STORAGE_KEY = "daypic_recent_artists";
 const FAVORITE_STORAGE_KEY = "daypic_favorite_artists";
 const DETAIL_STORAGE_KEY = "daypic_artist_detail_cache";
+const SEARCH_PAGE_STATE_KEY = "daypic_search_page_state";
 
 function joinLabel(value: string[] | string | undefined) {
   if (!value) return "";
   return Array.isArray(value) ? value.join(" · ") : value;
 }
 
-function normalizeArray(value: string[] | string | undefined): string[] {
+function normalizeArray(value: unknown): string[] {
   if (!value) return [];
-  return Array.isArray(value) ? value : [value];
+
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item).trim()).filter(Boolean);
+  }
+
+  if (typeof value === "string") {
+    return value
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  return [];
 }
 
-function safeParseStorage<T>(key: string, fallback: T): T {
-  if (typeof window === "undefined") return fallback;
-
+function parseStorage<T>(storage: Storage, key: string, fallback: T): T {
   try {
-    const raw = window.localStorage.getItem(key);
+    const raw = storage.getItem(key);
     if (!raw) return fallback;
     return JSON.parse(raw) as T;
   } catch {
@@ -93,20 +111,86 @@ function safeParseStorage<T>(key: string, fallback: T): T {
   }
 }
 
-function saveStorage<T>(key: string, value: T) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(key, JSON.stringify(value));
+function writeStorage<T>(storage: Storage, key: string, value: T) {
+  try {
+    storage.setItem(key, JSON.stringify(value));
+  } catch (error) {
+    console.error(`${key} 저장 실패`, error);
+  }
 }
 
-function buildSavedArtist(artist: CardArtist): SavedArtist {
+function buildSavedArtist(artist: Artist): SavedArtist {
   return {
-    id: artist.id,
+    id: String(artist.id),
     name: artist.name,
     service: normalizeArray(artist.service),
     region: normalizeArray(artist.region),
     price: artist.price,
     portfolio: artist.portfolio,
-    image: artist.image,
+    image: artist.image || "",
+  };
+}
+
+function normalizeArtistFromApi(rawArtist: Record<string, any>): Artist {
+  const keywordsSource =
+    rawArtist.keywords ??
+    rawArtist["성향키워드"] ??
+    rawArtist["작가 키워드"] ??
+    rawArtist["artist_keywords"];
+
+  const imageValue =
+    rawArtist.image ??
+    rawArtist["대표사진"] ??
+    rawArtist["image_url"] ??
+    "";
+
+  const openchatValue =
+    rawArtist.openchat_url ??
+    rawArtist["openchat_url"] ??
+    rawArtist["오픈카톡"] ??
+    "";
+
+  const portfolioImagesValue =
+    rawArtist.portfolio_images ??
+    rawArtist["portfolio_images"] ??
+    rawArtist["포트폴리오이미지"] ??
+    rawArtist["포트폴리오 이미지"] ??
+    "";
+
+  const portfolioValue =
+    rawArtist.portfolio ??
+    rawArtist["포트폴리오"] ??
+    "";
+
+  const ratingValue =
+    typeof rawArtist.rating === "number"
+      ? rawArtist.rating
+      : typeof rawArtist["평점"] === "number"
+      ? rawArtist["평점"]
+      : 4.8;
+
+  return {
+    id: String(rawArtist.id ?? ""),
+    name: String(
+      rawArtist.name ??
+        rawArtist["작가 또는 업체명"] ??
+        rawArtist["업체명"] ??
+        "이름 없는 작가"
+    ),
+    email: String(rawArtist.email ?? ""),
+    service: normalizeArray(
+      rawArtist.service ?? rawArtist["촬영서비스"] ?? rawArtist["service"]
+    ),
+    region: normalizeArray(
+      rawArtist.region ?? rawArtist["촬영지역"] ?? rawArtist["region"]
+    ),
+    price: String(rawArtist.price ?? rawArtist["촬영비용"] ?? "-"),
+    portfolio: portfolioValue ? String(portfolioValue) : "",
+    image: imageValue ? String(imageValue) : "",
+    rating: ratingValue,
+    keywords: normalizeArray(keywordsSource),
+    openchat_url: openchatValue ? String(openchatValue) : "",
+    portfolio_images: portfolioImagesValue,
   };
 }
 
@@ -122,7 +206,7 @@ export default function HomePage() {
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [message, setMessage] = useState(
-    "예식 날짜와 조건을 입력하면 촬영 가능한 작가를 바로 찾아볼 수 있어요."
+    "예식 날짜와 조건을 입력하면 촬영 가능한 작가를 바로 찾아볼 수 있어."
   );
 
   const [recentArtists, setRecentArtists] = useState<SavedArtist[]>([]);
@@ -134,14 +218,51 @@ export default function HomePage() {
 
   const serviceDropdownRef = useRef<HTMLDivElement | null>(null);
   const favoriteDropdownRef = useRef<HTMLDivElement | null>(null);
+  const initialRestoreDoneRef = useRef(false);
+  const pendingScrollRestoreRef = useRef<number | null>(null);
 
   useEffect(() => {
-    setRecentArtists(safeParseStorage<SavedArtist[]>(RECENT_STORAGE_KEY, []));
-    setFavoriteArtists(safeParseStorage<SavedArtist[]>(FAVORITE_STORAGE_KEY, []));
+    if (typeof window === "undefined") return;
+
+    const recent = parseStorage<SavedArtist[]>(
+      window.localStorage,
+      RECENT_STORAGE_KEY,
+      []
+    );
+    const favorite = parseStorage<SavedArtist[]>(
+      window.localStorage,
+      FAVORITE_STORAGE_KEY,
+      []
+    );
+    const savedPageState = parseStorage<SearchPageState | null>(
+      window.sessionStorage,
+      SEARCH_PAGE_STATE_KEY,
+      null
+    );
+
+    setRecentArtists(recent);
+    setFavoriteArtists(favorite);
+
+    if (savedPageState) {
+      setDate(savedPageState.date || "");
+      setSelectedServices(savedPageState.selectedServices || []);
+      setRegion(savedPageState.region || "");
+      setPrice(savedPageState.price || "");
+      setArtists(Array.isArray(savedPageState.artists) ? savedPageState.artists : []);
+      setHasSearched(!!savedPageState.hasSearched);
+      setMessage(
+        savedPageState.message ||
+          "예식 날짜와 조건을 입력하면 촬영 가능한 작가를 바로 찾아볼 수 있어요."
+      );
+      pendingScrollRestoreRef.current =
+        typeof savedPageState.scrollY === "number" ? savedPageState.scrollY : 0;
+    }
+
+    initialRestoreDoneRef.current = true;
   }, []);
 
   useEffect(() => {
-    function handleOutsideClick(event: MouseEvent) {
+    function handleClickOutside(event: MouseEvent) {
       const target = event.target as Node;
 
       if (
@@ -159,53 +280,205 @@ export default function HomePage() {
       }
     }
 
-    document.addEventListener("mousedown", handleOutsideClick);
+    document.addEventListener("mousedown", handleClickOutside);
     return () => {
-      document.removeEventListener("mousedown", handleOutsideClick);
+      document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
 
-  const cards = useMemo<CardArtist[]>(() => {
-    return artists.map((artist, index) => ({
-      ...artist,
-      image: artist.image || FALLBACK_IMAGES[index % FALLBACK_IMAGES.length],
-      rating: artist.rating ?? 4.8,
-      keywords:
+  const displayArtists = useMemo(() => {
+    return artists.map((artist, index) => {
+      const safeKeywords =
         artist.keywords && artist.keywords.length > 0
-          ? artist.keywords.slice(0, 6)
-          : DEFAULT_KEYWORDS,
-    }));
+          ? artist.keywords
+          : DEFAULT_KEYWORDS;
+
+      return {
+        ...artist,
+        id: String(artist.id),
+        image: artist.image || FALLBACK_IMAGES[index % FALLBACK_IMAGES.length],
+        rating: typeof artist.rating === "number" ? artist.rating : 4.8,
+        keywords: safeKeywords,
+        openchat_url: artist.openchat_url || "",
+        portfolio_images: artist.portfolio_images || "",
+      };
+    });
   }, [artists]);
 
   const selectedServiceLabel = useMemo(() => {
-    if (selectedServices.length === 0) return "촬영 서비스";
+    if (selectedServices.length === 0) return "촬영 서비스 선택";
     if (selectedServices.length === 1) return selectedServices[0];
     return `${selectedServices[0]} 외 ${selectedServices.length - 1}`;
   }, [selectedServices]);
 
-  const heroCountLabel = useMemo(() => {
+  const resultCountLabel = useMemo(() => {
     if (!hasSearched) return "실시간";
-    return `${cards.length}명`;
-  }, [cards.length, hasSearched]);
+    return `${displayArtists.length}명`;
+  }, [displayArtists.length, hasSearched]);
 
-  const isFavorite = useCallback(
-    (artistId: string) => {
-      return favoriteArtists.some((artist) => artist.id === artistId);
-    },
-    [favoriteArtists]
-  );
+  function saveSearchPageState(scrollY?: number) {
+    if (typeof window === "undefined") return;
+    if (!initialRestoreDoneRef.current) return;
 
-  const handleSearch = useCallback(async () => {
+    const nextState: SearchPageState = {
+      date,
+      selectedServices,
+      region,
+      price,
+      artists,
+      hasSearched,
+      message,
+      scrollY: typeof scrollY === "number" ? scrollY : window.scrollY || 0,
+    };
+
+    writeStorage(window.sessionStorage, SEARCH_PAGE_STATE_KEY, nextState);
+  }
+
+  useEffect(() => {
+    if (!initialRestoreDoneRef.current) return;
+    saveSearchPageState();
+  }, [date, selectedServices, region, price, artists, hasSearched, message]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!initialRestoreDoneRef.current) return;
+
+    const onScroll = () => {
+      saveSearchPageState(window.scrollY);
+    };
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+    };
+  }, [date, selectedServices, region, price, artists, hasSearched, message]);
+
+  useEffect(() => {
+    if (pendingScrollRestoreRef.current === null) return;
+
+    const targetY = pendingScrollRestoreRef.current;
+    pendingScrollRestoreRef.current = null;
+
+    const timer = window.setTimeout(() => {
+      window.scrollTo({
+        top: targetY,
+        behavior: "auto",
+      });
+    }, 80);
+
+    return () => window.clearTimeout(timer);
+  }, [displayArtists.length]);
+
+  function toggleService(serviceName: string) {
+    setSelectedServices((prev) => {
+      if (prev.includes(serviceName)) {
+        return prev.filter((item) => item !== serviceName);
+      }
+      return [...prev, serviceName];
+    });
+  }
+
+  function clearServices() {
+    setSelectedServices([]);
+  }
+
+  function confirmServices() {
+    setServiceDropdownOpen(false);
+  }
+
+  function saveRecentArtist(artist: Artist) {
+    if (typeof window === "undefined") return;
+
+    const nextRecent = [
+      buildSavedArtist(artist),
+      ...recentArtists.filter((item) => item.id !== String(artist.id)),
+    ].slice(0, 10);
+
+    setRecentArtists(nextRecent);
+    writeStorage(window.localStorage, RECENT_STORAGE_KEY, nextRecent);
+  }
+
+  function saveArtistDetailCache(artist: Artist) {
+    if (typeof window === "undefined") return;
+
+    const currentCache = parseStorage<Record<string, any>>(
+      window.localStorage,
+      DETAIL_STORAGE_KEY,
+      {}
+    );
+
+    const nextCache = {
+      ...currentCache,
+      [String(artist.id)]: {
+        ...artist,
+        id: String(artist.id),
+        keywords: artist.keywords || [],
+        성향키워드: artist.keywords || [],
+        openchat_url: artist.openchat_url || "",
+        portfolio_images: artist.portfolio_images || "",
+      },
+    };
+
+    writeStorage(window.localStorage, DETAIL_STORAGE_KEY, nextCache);
+  }
+
+  function goToArtistDetail(artist: Artist) {
+    saveSearchPageState(window.scrollY);
+    saveRecentArtist(artist);
+    saveArtistDetailCache(artist);
+    router.push(`/artists/${String(artist.id)}`);
+  }
+
+  function isFavorite(artistId: string) {
+    return favoriteArtists.some((artist) => artist.id === artistId);
+  }
+
+  function toggleFavorite(event: React.MouseEvent<HTMLButtonElement>, artist: Artist) {
+    event.stopPropagation();
+
+    if (typeof window === "undefined") return;
+
+    const exists = favoriteArtists.some((item) => item.id === String(artist.id));
+
+    if (exists) {
+      const nextFavorites = favoriteArtists.filter(
+        (item) => item.id !== String(artist.id)
+      );
+      setFavoriteArtists(nextFavorites);
+      writeStorage(window.localStorage, FAVORITE_STORAGE_KEY, nextFavorites);
+      return;
+    }
+
+    const nextFavorites = [
+      buildSavedArtist(artist),
+      ...favoriteArtists,
+    ].slice(0, 30);
+
+    setFavoriteArtists(nextFavorites);
+    writeStorage(window.localStorage, FAVORITE_STORAGE_KEY, nextFavorites);
+  }
+
+  function removeFavorite(event: React.MouseEvent<HTMLButtonElement>, artistId: string) {
+    event.stopPropagation();
+
+    if (typeof window === "undefined") return;
+
+    const nextFavorites = favoriteArtists.filter((item) => item.id !== artistId);
+    setFavoriteArtists(nextFavorites);
+    writeStorage(window.localStorage, FAVORITE_STORAGE_KEY, nextFavorites);
+  }
+
+  async function handleSearch() {
     if (!date) {
       setArtists([]);
       setHasSearched(false);
-      setMessage("먼저 예식 날짜를 입력해줘.");
+      setMessage("먼저 예식 날짜를 입력해주세요.");
       return;
     }
 
     setLoading(true);
     setHasSearched(true);
-    setMessage("가능한 작가를 찾는 중이야...");
+    setMessage("가능한 작가를 찾는 중이예요...");
 
     try {
       const params = new URLSearchParams();
@@ -228,125 +501,35 @@ export default function HomePage() {
         throw new Error(data.message || "검색 중 오류가 발생했어요.");
       }
 
-      const nextArtists: Artist[] = Array.isArray(data.artists) ? data.artists : [];
-      setArtists(nextArtists);
+      const normalizedArtists: Artist[] = Array.isArray(data.artists)
+        ? data.artists.map((item: Record<string, any>) => normalizeArtistFromApi(item))
+        : [];
 
-      if (nextArtists.length === 0) {
+      setArtists(normalizedArtists);
+
+      if (normalizedArtists.length === 0) {
         setMessage("조건에 맞는 작가가 없어요.");
       } else {
-        setMessage(`총 ${nextArtists.length}명의 작가를 찾았어요.`);
+        setMessage(`총 ${normalizedArtists.length}명의 작가를 찾았어요.`);
       }
     } catch (error) {
       console.error(error);
       setArtists([]);
       setMessage(
-        error instanceof Error ? error.message : "알 수 없는 오류가 발생했어요."
+        error instanceof Error ? error.message : "알 수 없는 오류가 발생했어."
       );
     } finally {
       setLoading(false);
     }
-  }, [date, region, price, selectedServices]);
-
-  useEffect(() => {
-    if (!hasSearched) return;
-    if (!date) return;
-    handleSearch();
-  }, [date, region, price, selectedServices, hasSearched, handleSearch]);
-
-  function toggleService(serviceName: string) {
-    setSelectedServices((prev) => {
-      if (prev.includes(serviceName)) {
-        return prev.filter((item) => item !== serviceName);
-      }
-      return [...prev, serviceName];
-    });
-  }
-
-  function clearServices() {
-    setSelectedServices([]);
-  }
-
-  function saveRecentArtist(artist: CardArtist) {
-    const nextRecent = [
-      buildSavedArtist(artist),
-      ...recentArtists.filter((item) => item.id !== artist.id),
-    ].slice(0, 10);
-
-    setRecentArtists(nextRecent);
-    saveStorage(RECENT_STORAGE_KEY, nextRecent);
-  }
-
-  function saveArtistDetail(artist: CardArtist) {
-    const current = safeParseStorage<Record<string, CardArtist>>(
-      DETAIL_STORAGE_KEY,
-      {}
-    );
-
-    const next = {
-      ...current,
-      [artist.id]: artist,
-    };
-
-    saveStorage(DETAIL_STORAGE_KEY, next);
-  }
-
-  function goToArtistDetail(artist: CardArtist) {
-    saveRecentArtist(artist);
-    saveArtistDetail(artist);
-    router.push(`/artists/${artist.id}`);
-  }
-
-  function handleCardClick(artist: CardArtist) {
-    goToArtistDetail(artist);
-  }
-
-  function handlePortfolioClick(
-    event: React.MouseEvent<HTMLButtonElement>,
-    artist: CardArtist
-  ) {
-    event.stopPropagation();
-
-    if (!artist.portfolio) return;
-
-    saveRecentArtist(artist);
-    window.open(artist.portfolio, "_blank", "noopener,noreferrer");
-  }
-
-  function handleToggleFavorite(
-    event: React.MouseEvent<HTMLButtonElement>,
-    artist: CardArtist
-  ) {
-    event.stopPropagation();
-
-    const exists = favoriteArtists.some((item) => item.id === artist.id);
-
-    if (exists) {
-      const nextFavorites = favoriteArtists.filter((item) => item.id !== artist.id);
-      setFavoriteArtists(nextFavorites);
-      saveStorage(FAVORITE_STORAGE_KEY, nextFavorites);
-      return;
-    }
-
-    const nextFavorites = [buildSavedArtist(artist), ...favoriteArtists].slice(0, 30);
-    setFavoriteArtists(nextFavorites);
-    saveStorage(FAVORITE_STORAGE_KEY, nextFavorites);
-  }
-
-  function removeFavorite(
-    event: React.MouseEvent<HTMLButtonElement>,
-    artistId: string
-  ) {
-    event.stopPropagation();
-    const nextFavorites = favoriteArtists.filter((item) => item.id !== artistId);
-    setFavoriteArtists(nextFavorites);
-    saveStorage(FAVORITE_STORAGE_KEY, nextFavorites);
   }
 
   function handleChecklistClick() {
+    saveSearchPageState(window.scrollY);
     router.push("/checklist");
   }
 
   function handleTipsClick() {
+    saveSearchPageState(window.scrollY);
     router.push("/tips");
   }
 
@@ -355,28 +538,45 @@ export default function HomePage() {
       <header className="sticky top-0 z-40 border-b border-[#ece4f5] bg-white/80 backdrop-blur">
         <div className="mx-auto flex max-w-[1540px] items-center justify-between px-5 py-4 md:px-8">
           <a
-  href="https://ddaypic.com"
-  className="inline-flex items-center transition hover:opacity-80"
->
-  <img
-    src="/daypic_logo.png"
-    alt="daypic logo"
-    className="h-11 w-auto object-contain"
-  />
-</a>
+            href="https://ddaypic.com"
+            className="inline-flex items-center transition hover:opacity-80"
+          >
+            <img
+              src="/daypic_logo.png"
+              alt="daypic logo"
+              className="h-11 w-auto object-contain"
+            />
+          </a>
+
+          <div className="flex items-center gap-2 md:hidden">
+            <button
+              type="button"
+              onClick={handleChecklistClick}
+              className="rounded-full border border-[#e8ddf5] bg-white px-3 py-2 text-[12px] font-semibold text-[#665d82]"
+            >
+              체크리스트
+            </button>
+            <button
+              type="button"
+              onClick={handleTipsClick}
+              className="rounded-full border border-[#e8ddf5] bg-white px-3 py-2 text-[12px] font-semibold text-[#665d82]"
+            >
+              본식꿀팁
+            </button>
+          </div>
 
           <div className="hidden items-center gap-3 md:flex">
             <button
               type="button"
               onClick={handleChecklistClick}
-              className="rounded-full border border-[#e8ddf5] bg-white px-4 py-2 text-[13px] font-semibold text-[#665d82] transition hover:border-[#d7c7ee] hover:text-[#7b5cf6]"
+              className="rounded-full border border-[#e8ddf5] bg-white px-4 py-2 text-[13px] font-semibold text-[#665d82]"
             >
               결혼준비 체크리스트
             </button>
             <button
               type="button"
               onClick={handleTipsClick}
-              className="rounded-full border border-[#e8ddf5] bg-white px-4 py-2 text-[13px] font-semibold text-[#665d82] transition hover:border-[#d7c7ee] hover:text-[#7b5cf6]"
+              className="rounded-full border border-[#e8ddf5] bg-white px-4 py-2 text-[13px] font-semibold text-[#665d82]"
             >
               꿀팁 콘텐츠
             </button>
@@ -385,7 +585,7 @@ export default function HomePage() {
       </header>
 
       <div className="mx-auto max-w-[1540px] px-5 pb-12 pt-6 md:px-8 md:pt-8">
-        <section className="relative overflow-hidden rounded-[40px] border border-[#eee5f7] bg-[radial-gradient(circle_at_top_left,_rgba(164,133,255,0.18),_transparent_32%),radial-gradient(circle_at_bottom_right,_rgba(244,170,214,0.18),_transparent_25%),linear-gradient(135deg,_#ffffff_0%,_#fcf9ff_45%,_#f8f3fb_100%)] p-5 shadow-[0_18px_50px_rgba(95,71,147,0.08)] md:p-8 xl:p-10">
+        <section className="relative rounded-[40px] border border-[#eee5f7] bg-[radial-gradient(circle_at_top_left,_rgba(164,133,255,0.18),_transparent_32%),radial-gradient(circle_at_bottom_right,_rgba(244,170,214,0.18),_transparent_25%),linear-gradient(135deg,_#ffffff_0%,_#fcf9ff_45%,_#f8f3fb_100%)] p-5 shadow-[0_18px_50px_rgba(95,71,147,0.08)] md:p-8 xl:p-10">
           <div className="grid gap-6 xl:grid-cols-[1.1fr_0.95fr]">
             <div className="max-w-[700px]">
               <p className="mb-3 inline-flex rounded-full border border-[#eadff8] bg-white/80 px-4 py-2 text-[12px] font-semibold text-[#7a5cf6] shadow-sm">
@@ -405,106 +605,156 @@ export default function HomePage() {
 
               <div className="mt-7 max-w-[580px] rounded-[28px] border border-[#eee4f7] bg-white/95 p-4 shadow-[0_16px_36px_rgba(94,72,145,0.10)] md:p-5">
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                  <input
-                    type="date"
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                    className={`h-[52px] w-full rounded-[16px] border px-4 text-[15px] text-[#2c2843] outline-none transition ${
-                      date
-                        ? "border-[#8a63ff] bg-[#faf7ff] shadow-[0_0_0_3px_rgba(138,99,255,0.08)]"
-                        : "border-[#ece5f5] bg-[#fcfbfe]"
-                    }`}
-                  />
+                  <div className="flex flex-col gap-2">
+                    <label className="px-1 text-[13px] font-semibold text-[#7a7297]">
+                      예식 날짜
+                    </label>
 
-                  <div ref={serviceDropdownRef} className="relative">
-                    <button
-                      type="button"
-                      onClick={() => setServiceDropdownOpen((prev) => !prev)}
-                      className={`flex h-[52px] w-full items-center justify-between rounded-[16px] border px-4 text-[15px] transition ${
-                        selectedServices.length > 0 || serviceDropdownOpen
-                          ? "border-[#8a63ff] bg-[#faf7ff] text-[#2c2843] shadow-[0_0_0_3px_rgba(138,99,255,0.08)]"
-                          : "border-[#ece5f5] bg-[#fcfbfe] text-[#2c2843]"
+                    <input
+                      type="date"
+                      value={date}
+                      onChange={(e) => setDate(e.target.value)}
+                      className={`h-[52px] w-full rounded-[16px] border px-4 text-[15px] text-[#2c2843] outline-none transition appearance-none ${
+                        date
+                          ? "border-[#8a63ff] bg-[#faf7ff] shadow-[0_0_0_3px_rgba(138,99,255,0.08)]"
+                          : "border-[#ece5f5] bg-[#fcfbfe]"
                       }`}
-                    >
-                      <span className="truncate">{selectedServiceLabel}</span>
-                      <span className="ml-3 shrink-0 text-[#7a7297]">
-                        {serviceDropdownOpen ? "⌃" : "⌄"}
-                      </span>
-                    </button>
-
-                    {serviceDropdownOpen && (
-                      <div className="absolute left-0 right-0 top-[58px] z-30 rounded-[20px] border border-[#e8dff2] bg-white p-4 shadow-[0_18px_40px_rgba(70,55,110,0.14)]">
-                        <div className="mb-3 flex items-center justify-between">
-                          <p className="text-[14px] font-semibold text-[#2b2745]">
-                            촬영 서비스 선택
-                          </p>
-                          <button
-                            type="button"
-                            onClick={clearServices}
-                            className="text-[13px] font-medium text-[#7b5cf6]"
-                          >
-                            초기화
-                          </button>
-                        </div>
-
-                        <div className="space-y-2">
-                          {SERVICES.map((item) => {
-                            const active = selectedServices.includes(item);
-
-                            return (
-                              <button
-                                key={item}
-                                type="button"
-                                onClick={() => toggleService(item)}
-                                className={`flex w-full items-center justify-between rounded-[14px] border px-3 py-3 text-left text-[14px] transition ${
-                                  active
-                                    ? "border-[#7b5cf6] bg-[#f5f0ff] text-[#4d33da]"
-                                    : "border-[#ece5f5] bg-[#fcfbfe] text-[#3e3858] hover:bg-[#f8f4fd]"
-                                }`}
-                              >
-                                <span>{item}</span>
-                                <span>{active ? "✓" : ""}</span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
+                    />
                   </div>
 
-                  <select
-                    value={region}
-                    onChange={(e) => setRegion(e.target.value)}
-                    className={`h-[52px] w-full rounded-[16px] border px-4 text-[15px] text-[#2c2843] outline-none transition ${
-                      region
-                        ? "border-[#8a63ff] bg-[#faf7ff] shadow-[0_0_0_3px_rgba(138,99,255,0.08)]"
-                        : "border-[#ece5f5] bg-[#fcfbfe]"
-                    }`}
-                  >
-                    <option value="">지역</option>
-                    {REGIONS.map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex flex-col gap-2">
+                    <label className="px-1 text-[13px] font-semibold text-[#7a7297]">
+                      촬영 서비스
+                    </label>
 
-                  <select
-                    value={price}
-                    onChange={(e) => setPrice(e.target.value)}
-                    className={`h-[52px] w-full rounded-[16px] border px-4 text-[15px] text-[#2c2843] outline-none transition ${
-                      price
-                        ? "border-[#8a63ff] bg-[#faf7ff] shadow-[0_0_0_3px_rgba(138,99,255,0.08)]"
-                        : "border-[#ece5f5] bg-[#fcfbfe]"
-                    }`}
-                  >
-                    <option value="">예산 범위</option>
-                    {PRICES.map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
-                  </select>
+                    <div ref={serviceDropdownRef} className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setServiceDropdownOpen((prev) => !prev)}
+                        className={`flex h-[52px] w-full items-center justify-between rounded-[16px] border px-4 text-[15px] transition ${
+                          selectedServices.length > 0 || serviceDropdownOpen
+                            ? "border-[#8a63ff] bg-[#faf7ff] text-[#2c2843] shadow-[0_0_0_3px_rgba(138,99,255,0.08)]"
+                            : "border-[#ece5f5] bg-[#fcfbfe] text-[#2c2843]"
+                        }`}
+                      >
+                        <span className="truncate">{selectedServiceLabel}</span>
+                        <span className="ml-3 shrink-0 text-[#7a7297]">
+                          {serviceDropdownOpen ? "⌃" : "⌄"}
+                        </span>
+                      </button>
+
+                      {serviceDropdownOpen && (
+                        <div className="absolute left-0 right-0 top-[58px] z-30 rounded-[20px] border border-[#e8dff2] bg-white p-4 shadow-[0_18px_40px_rgba(70,55,110,0.14)]">
+                          <div className="mb-3 flex items-center justify-between">
+                            <p className="text-[14px] font-semibold text-[#2b2745]">
+                              촬영 서비스 선택
+                            </p>
+                            <button
+                              type="button"
+                              onClick={clearServices}
+                              className="text-[13px] font-medium text-[#7b5cf6]"
+                            >
+                              초기화
+                            </button>
+                          </div>
+
+                          <div className="space-y-2">
+                            {SERVICES.map((item) => {
+                              const active = selectedServices.includes(item);
+
+                              return (
+                                <button
+                                  key={item}
+                                  type="button"
+                                  onClick={() => toggleService(item)}
+                                  className={`flex w-full items-center justify-between rounded-[14px] border px-3 py-3 text-left text-[14px] transition ${
+                                    active
+                                      ? "border-[#7b5cf6] bg-[#f5f0ff] text-[#4d33da]"
+                                      : "border-[#ece5f5] bg-[#fcfbfe] text-[#3e3858]"
+                                  }`}
+                                >
+                                  <span>{item}</span>
+                                  <span
+                                    className={`flex h-5 w-5 items-center justify-center rounded-full text-[12px] ${
+                                      active
+                                        ? "bg-[#7b5cf6] text-white"
+                                        : "border border-[#d8cfee] text-transparent"
+                                    }`}
+                                  >
+                                    ✓
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          <div className="mt-4 grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={clearServices}
+                              className="h-11 rounded-[14px] border border-[#e5dcf3] bg-[#faf8fd] text-[14px] font-semibold text-[#6f6888]"
+                            >
+                              전체해제
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={confirmServices}
+                              className="h-11 rounded-[14px] bg-gradient-to-r from-[#7b5cf6] to-[#d75eb6] text-[14px] font-semibold text-white"
+                            >
+                              선택 완료
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <label className="px-1 text-[13px] font-semibold text-[#7a7297]">
+                      지역
+                    </label>
+
+                    <select
+                      value={region}
+                      onChange={(e) => setRegion(e.target.value)}
+                      className={`h-[52px] w-full rounded-[16px] border px-4 text-[15px] text-[#2c2843] outline-none transition ${
+                        region
+                          ? "border-[#8a63ff] bg-[#faf7ff] shadow-[0_0_0_3px_rgba(138,99,255,0.08)]"
+                          : "border-[#ece5f5] bg-[#fcfbfe]"
+                      }`}
+                    >
+                      <option value="">지역 선택</option>
+                      {REGIONS.map((item) => (
+                        <option key={item} value={item}>
+                          {item}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <label className="px-1 text-[13px] font-semibold text-[#7a7297]">
+                      예산 범위
+                    </label>
+
+                    <select
+                      value={price}
+                      onChange={(e) => setPrice(e.target.value)}
+                      className={`h-[52px] w-full rounded-[16px] border px-4 text-[15px] text-[#2c2843] outline-none transition ${
+                        price
+                          ? "border-[#8a63ff] bg-[#faf7ff] shadow-[0_0_0_3px_rgba(138,99,255,0.08)]"
+                          : "border-[#ece5f5] bg-[#fcfbfe]"
+                      }`}
+                    >
+                      <option value="">예산 범위 선택</option>
+                      {PRICES.map((item) => (
+                        <option key={item} value={item}>
+                          {item}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
                 <button
@@ -514,7 +764,7 @@ export default function HomePage() {
                   className={`mt-4 h-[54px] w-full rounded-[16px] text-[16px] font-bold text-white transition ${
                     loading
                       ? "bg-[#a393cc]"
-                      : "bg-gradient-to-r from-[#7b5cf6] to-[#d75eb6] shadow-[0_16px_30px_rgba(123,92,246,0.25)] hover:-translate-y-[1px]"
+                      : "bg-gradient-to-r from-[#7b5cf6] to-[#d75eb6]"
                   }`}
                 >
                   {loading ? "작가 검색 중..." : "작가 검색"}
@@ -559,7 +809,7 @@ export default function HomePage() {
 
             <div className="grid gap-4 self-start">
               <div className="flex min-h-[122px] items-center gap-4 rounded-[28px] border border-[#eee3f7] bg-white/95 p-5 shadow-[0_14px_30px_rgba(83,63,125,0.08)]">
-                <div className="flex h-16 w-16 items-center justify-center rounded-[22px] bg-gradient-to-br from-[#7b5cf6] to-[#b060ff] text-[28px] text-white shadow-[0_10px_24px_rgba(123,92,246,0.24)]">
+                <div className="flex h-16 w-16 items-center justify-center rounded-[22px] bg-gradient-to-br from-[#7b5cf6] to-[#b060ff] text-[28px] text-white">
                   👤
                 </div>
                 <div>
@@ -567,7 +817,7 @@ export default function HomePage() {
                     Registered
                   </p>
                   <p className="mt-1 text-[24px] font-black tracking-[-0.05em] text-[#2c2646]">
-                    조건 맞는 작가 <span className="text-[#8a63ff]">{heroCountLabel}</span>
+                    조건 맞는 작가 <span className="text-[#8a63ff]">{resultCountLabel}</span>
                   </p>
                   <p className="mt-1 text-[14px] text-[#786f92]">
                     검색 결과 기준으로 바로 확인 가능
@@ -578,9 +828,9 @@ export default function HomePage() {
               <button
                 type="button"
                 onClick={handleChecklistClick}
-                className="flex min-h-[122px] items-center gap-4 rounded-[28px] border border-[#eee3f7] bg-white/95 p-5 text-left shadow-[0_14px_30px_rgba(83,63,125,0.08)] transition hover:-translate-y-[2px]"
+                className="hidden md:flex min-h-[122px] items-center gap-4 rounded-[28px] border border-[#eee3f7] bg-white/95 p-5 text-left shadow-[0_14px_30px_rgba(83,63,125,0.08)]"
               >
-                <div className="flex h-16 w-16 items-center justify-center rounded-[22px] bg-gradient-to-br from-[#845ef7] to-[#dc68b7] text-[26px] text-white shadow-[0_10px_24px_rgba(123,92,246,0.24)]">
+                <div className="flex h-16 w-16 items-center justify-center rounded-[22px] bg-gradient-to-br from-[#845ef7] to-[#dc68b7] text-[26px] text-white">
                   ✓
                 </div>
                 <div>
@@ -599,9 +849,9 @@ export default function HomePage() {
               <button
                 type="button"
                 onClick={handleTipsClick}
-                className="flex min-h-[122px] items-center gap-4 rounded-[28px] border border-[#eee3f7] bg-white/95 p-5 text-left shadow-[0_14px_30px_rgba(83,63,125,0.08)] transition hover:-translate-y-[2px]"
+                className="hidden md:flex min-h-[122px] items-center gap-4 rounded-[28px] border border-[#eee3f7] bg-white/95 p-5 text-left shadow-[0_14px_30px_rgba(83,63,125,0.08)]"
               >
-                <div className="flex h-16 w-16 items-center justify-center rounded-[22px] bg-gradient-to-br from-[#8a63ff] to-[#f064b7] text-[26px] text-white shadow-[0_10px_24px_rgba(123,92,246,0.24)]">
+                <div className="flex h-16 w-16 items-center justify-center rounded-[22px] bg-gradient-to-br from-[#8a63ff] to-[#f064b7] text-[26px] text-white">
                   ✦
                 </div>
                 <div>
@@ -645,8 +895,11 @@ export default function HomePage() {
                       <button
                         key={artist.id}
                         type="button"
-                        onClick={() => router.push(`/artists/${artist.id}`)}
-                        className="flex w-full items-center gap-3 rounded-[16px] border border-[#ebe3f4] bg-white px-3 py-3 text-left transition hover:-translate-y-[1px] hover:shadow-[0_10px_22px_rgba(60,50,100,0.08)]"
+                        onClick={() => {
+                          saveSearchPageState(window.scrollY);
+                          router.push(`/artists/${String(artist.id)}`);
+                        }}
+                        className="flex w-full items-center gap-3 rounded-[16px] border border-[#ebe3f4] bg-white px-3 py-3 text-left"
                       >
                         <div className="h-11 w-11 overflow-hidden rounded-full bg-[#f1ebf8]">
                           <img
@@ -668,7 +921,7 @@ export default function HomePage() {
                     ))
                   ) : (
                     <div className="rounded-[16px] border border-dashed border-[#ddd1ee] bg-white px-4 py-5 text-[12px] text-[#847b9d]">
-                      아직 최근 본 작가가 없어요.
+                      아직 최근 본 작가가 없어.
                     </div>
                   )}
                 </div>
@@ -689,10 +942,10 @@ export default function HomePage() {
                 <button
                   type="button"
                   onClick={() => setFavoriteOpen((prev) => !prev)}
-                  className={`inline-flex h-10 items-center justify-center rounded-[14px] px-4 text-[13px] font-semibold transition ${
+                  className={`inline-flex h-10 items-center justify-center rounded-[14px] px-4 text-[13px] font-semibold ${
                     favoriteOpen
-                      ? "bg-[#6d46f6] text-white shadow-[0_12px_24px_rgba(109,70,246,0.2)]"
-                      : "bg-[#f1eaff] text-[#6d46f6] hover:bg-[#eadfff]"
+                      ? "bg-[#6d46f6] text-white"
+                      : "bg-[#f1eaff] text-[#6d46f6]"
                   }`}
                 >
                   <span className="mr-2">❤</span>
@@ -720,7 +973,10 @@ export default function HomePage() {
                           >
                             <button
                               type="button"
-                              onClick={() => router.push(`/artists/${artist.id}`)}
+                              onClick={() => {
+                                saveSearchPageState(window.scrollY);
+                                router.push(`/artists/${String(artist.id)}`);
+                              }}
                               className="flex min-w-0 flex-1 items-center gap-3 text-left"
                             >
                               <div className="h-10 w-10 overflow-hidden rounded-full">
@@ -744,7 +1000,7 @@ export default function HomePage() {
                             <button
                               type="button"
                               onClick={(event) => removeFavorite(event, artist.id)}
-                              className="text-[#ff5c9a] transition hover:scale-110"
+                              className="text-[#ff5c9a]"
                               aria-label="찜 해제"
                             >
                               ❤
@@ -753,7 +1009,7 @@ export default function HomePage() {
                         ))
                       ) : (
                         <div className="rounded-[14px] border border-dashed border-[#e5dcf2] px-4 py-5 text-[12px] text-[#837b9c]">
-                          아직 찜한 작가가 없어요.
+                          아직 찜한 작가가 없어.
                         </div>
                       )}
                     </div>
@@ -763,14 +1019,14 @@ export default function HomePage() {
             </div>
 
             <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-              {cards.length > 0 ? (
-                cards.map((artist) => {
-                  const favorite = isFavorite(artist.id);
+              {displayArtists.length > 0 ? (
+                displayArtists.map((artist) => {
+                  const favorite = isFavorite(String(artist.id));
 
                   return (
                     <article
-                      key={artist.id}
-                      onClick={() => handleCardClick(artist)}
+                      key={String(artist.id)}
+                      onClick={() => goToArtistDetail(artist)}
                       className="group cursor-pointer overflow-hidden rounded-[26px] border border-[#e8dff3] bg-white shadow-[0_8px_24px_rgba(60,50,100,0.06)] transition hover:-translate-y-[4px] hover:shadow-[0_22px_40px_rgba(60,50,100,0.12)]"
                     >
                       <div className="relative aspect-[16/10] overflow-hidden bg-[#f1ebf8]">
@@ -782,11 +1038,11 @@ export default function HomePage() {
 
                         <button
                           type="button"
-                          onClick={(event) => handleToggleFavorite(event, artist)}
-                          className={`absolute right-3 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full border backdrop-blur-sm transition ${
+                          onClick={(event) => toggleFavorite(event, artist)}
+                          className={`absolute right-3 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full border backdrop-blur-sm ${
                             favorite
                               ? "border-[#ffbdd4] bg-[#ffedf5] text-[#ff5c9a]"
-                              : "border-white/70 bg-white/85 text-[#6a617f] hover:bg-white"
+                              : "border-white/70 bg-white/85 text-[#6a617f]"
                           }`}
                           aria-label={favorite ? "찜 해제" : "찜하기"}
                         >
@@ -835,18 +1091,28 @@ export default function HomePage() {
                               event.stopPropagation();
                               goToArtistDetail(artist);
                             }}
-                            className="h-10 rounded-[14px] bg-[#f3effb] text-[13px] font-semibold text-[#5b47c8] transition hover:bg-[#ece3ff]"
+                            className="h-10 rounded-[14px] bg-[#f3effb] text-[13px] font-semibold text-[#5b47c8]"
                           >
                             상세페이지
                           </button>
 
                           <button
                             type="button"
-                            onClick={(event) => handlePortfolioClick(event, artist)}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              if (!artist.portfolio) return;
+                              saveSearchPageState(window.scrollY);
+                              saveRecentArtist(artist);
+                              window.open(
+                                artist.portfolio,
+                                "_blank",
+                                "noopener,noreferrer"
+                              );
+                            }}
                             disabled={!artist.portfolio}
-                            className={`h-10 rounded-[14px] text-[13px] font-semibold transition ${
+                            className={`h-10 rounded-[14px] text-[13px] font-semibold ${
                               artist.portfolio
-                                ? "bg-[#6d46f6] text-white hover:opacity-95"
+                                ? "bg-[#6d46f6] text-white"
                                 : "bg-[#ece8f6] text-[#9a93b1]"
                             }`}
                           >
@@ -859,7 +1125,7 @@ export default function HomePage() {
                 })
               ) : (
                 <div className="col-span-full rounded-[24px] border border-[#e6dff0] bg-white p-10 text-center text-[17px] text-[#756f8d]">
-                  {date ? "아직 표시할 검색 결과가 없어요." : "먼저 예식 날짜를 입력해줘요."}
+                  {date ? "아직 표시할 검색 결과가 없어." : "먼저 예식 날짜를 입력해줘."}
                 </div>
               )}
             </div>

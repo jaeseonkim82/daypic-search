@@ -16,6 +16,8 @@ type Artist = {
   image?: string;
   rating?: number;
   keywords?: string[];
+  openchat_url?: string;
+  portfolio_images?: string[] | string;
 };
 
 const AIRTABLE_TOKEN = process.env.AIRTABLE_TOKEN;
@@ -143,8 +145,27 @@ function buildArtists(records: AirtableRecord[]): Artist[] {
 
     const keywordValue = getField(fields, [
       "keywords",
+      "성향키워드",
+      "작가 키워드",
       "키워드",
       "keyword",
+      "artist_keywords",
+    ]);
+
+    const openchatValue = getField(fields, [
+      "openchat_url",
+      "오픈카톡",
+      "오픈카톡링크",
+      "오픈카톡 링크",
+      "문의하기",
+      "문의링크",
+    ]);
+
+    const portfolioImagesValue = getField(fields, [
+      "portfolio_images",
+      "포트폴리오이미지",
+      "포트폴리오 이미지",
+      "portfolioImages",
     ]);
 
     return {
@@ -170,6 +191,10 @@ function buildArtists(records: AirtableRecord[]): Artist[] {
       ),
       rating: Number(getField(fields, ["rating", "평점"]) || 4.8),
       keywords: toArray(keywordValue),
+      openchat_url: toStringValue(openchatValue),
+      portfolio_images: Array.isArray(portfolioImagesValue)
+        ? toArray(portfolioImagesValue)
+        : toStringValue(portfolioImagesValue),
     };
   });
 }
