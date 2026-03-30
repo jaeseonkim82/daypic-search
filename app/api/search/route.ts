@@ -4,7 +4,52 @@ type AirtableRecord = {
   id: string;
   fields: Record<string, unknown>;
 };
+function pickImage(fields: Record<string, unknown>): string {
+  const candidates = [
+    fields["대표사진"],
+    fields["대표이미지"],
+    fields["대표 이미지"],
+    fields["image"],
+    fields["thumbnail"],
+  ];
 
+  for (const value of candidates) {
+    if (!value) continue;
+
+    // 문자열
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+
+    // 배열 (Airtable attachment)
+    if (Array.isArray(value) && value.length > 0) {
+      const first = value[0];
+
+      // 그냥 문자열 배열
+      if (typeof first === "string") return first;
+
+      // attachment 구조
+      if (
+        first &&
+        typeof first === "object" &&
+        "url" in first
+      ) {
+        return String((first as any).url);
+      }
+
+      // thumbnail 구조
+      if (
+        first &&
+        typeof first === "object" &&
+        (first as any).thumbnails?.large?.url
+      ) {
+        return String((first as any).thumbnails.large.url);
+      }
+    }
+  }
+
+  return "";
+}
 type Artist = {
   id: string;
   name: string;
@@ -186,9 +231,7 @@ function buildArtists(records: AirtableRecord[]): Artist[] {
       portfolio: toStringValue(
         getField(fields, ["포트폴리오", "portfolio", "링크"])
       ),
-      image: toStringValue(
-        getField(fields, ["대표사진", "대표이미지", "대표 이미지", "image", "thumbnail"])
-      ),
+      image: pickImage(fields),
       rating: Number(getField(fields, ["rating", "평점"]) || 4.8),
       keywords: toArray(keywordValue),
       openchat_url: toStringValue(openchatValue),

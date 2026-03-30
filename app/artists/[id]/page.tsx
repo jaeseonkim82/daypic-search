@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 
 type ArtistDetail = {
@@ -12,7 +12,7 @@ type ArtistDetail = {
   price: string;
   portfolio?: string;
   image?: string;
-  rating?: number;
+  rating?: number | null;
   keywords?: string[];
   성향키워드?: string[] | string;
   openchat_url?: string;
@@ -37,12 +37,36 @@ function normalizeArray(value: unknown): string[] {
   if (!value) return [];
 
   if (Array.isArray(value)) {
-    return value.map((item) => String(item).trim()).filter(Boolean);
+    return value
+      .map((item) => {
+        if (typeof item === "string") return item.trim();
+
+        if (
+          item &&
+          typeof item === "object" &&
+          "url" in item &&
+          typeof (item as { url?: unknown }).url === "string"
+        ) {
+          return (item as { url: string }).url.trim();
+        }
+
+        if (
+          item &&
+          typeof item === "object" &&
+          "secure_url" in item &&
+          typeof (item as { secure_url?: unknown }).secure_url === "string"
+        ) {
+          return (item as { secure_url: string }).secure_url.trim();
+        }
+
+        return "";
+      })
+      .filter(Boolean);
   }
 
   if (typeof value === "string") {
     return value
-      .split(",")
+      .split(/\r?\n/)
       .map((item) => item.trim())
       .filter(Boolean);
   }
@@ -95,9 +119,14 @@ export default function ArtistDetailPage() {
   const [favoriteArtists, setFavoriteArtists] = useState<SavedArtist[]>([]);
   const [showFloatingContact, setShowFloatingContact] = useState(false);
   const [imageError, setImageError] = useState(false);
+  const [selectedPortfolioIndex, setSelectedPortfolioIndex] = useState<number | null>(null);
 
   const [recentOpen, setRecentOpen] = useState(true);
   const [favoriteOpen, setFavoriteOpen] = useState(true);
+
+  const touchStartXRef = useRef<number | null>(null);
+  const touchStartYRef = useRef<number | null>(null);
+  const thumbnailStripRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -114,7 +143,7 @@ export default function ArtistDetailPage() {
       []
     );
 
-    const detailCache = parseStorage<Record<string, any>>(
+    const detailCache = parseStorage<Record<string, ArtistDetail>>(
       window.localStorage,
       DETAIL_STORAGE_KEY,
       {}
@@ -142,6 +171,67 @@ export default function ArtistDetailPage() {
         portfolio_images: cachedArtist.portfolio_images || "",
       });
     }
+
+    let isMounted = true;
+
+    async function fetchArtistDetail() {
+      try {
+        const response = await fetch(
+          `/api/artists/${encodeURIComponent(artistId)}`,
+          {
+            method: "GET",
+            cache: "no-store",
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error(`작가 상세 조회 실패: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        if (!isMounted) return;
+
+        const normalizedKeywords =
+          normalizeArray(data.keywords).length > 0
+            ? normalizeArray(data.keywords)
+            : normalizeArray(data["성향키워드"]);
+
+        const normalizedArtist: ArtistDetail = {
+          ...data,
+          id: String(data.id ?? artistId),
+          service: normalizeArray(data.service),
+          region: normalizeArray(data.region),
+          keywords: normalizedKeywords,
+          성향키워드: normalizedKeywords,
+          openchat_url: data.openchat_url || "",
+          portfolio_images: data.portfolio_images || "",
+        };
+
+        setArtist(normalizedArtist);
+
+        const nextDetailCache = {
+          ...detailCache,
+          [artistId]: normalizedArtist,
+        };
+
+        writeStorage(window.localStorage, DETAIL_STORAGE_KEY, nextDetailCache);
+      } catch (error) {
+        console.error("작가 상세 불러오기 실패", error);
+
+        if (!cachedArtist && isMounted) {
+          setArtist(null);
+        }
+      }
+    }
+
+    if (artistId) {
+      fetchArtistDetail();
+    }
+
+    return () => {
+      isMounted = false;
+    };
   }, [artistId]);
 
   useEffect(() => {
@@ -168,6 +258,18 @@ export default function ArtistDetailPage() {
     if (!artist?.portfolio_images) return [];
     return normalizeArray(artist.portfolio_images);
   }, [artist]);
+
+  const selectedPortfolioImage = useMemo(() => {
+    if (
+      selectedPortfolioIndex === null ||
+      selectedPortfolioIndex < 0 ||
+      selectedPortfolioIndex >= portfolioImages.length
+    ) {
+      return null;
+    }
+
+    return portfolioImages[selectedPortfolioIndex];
+  }, [portfolioImages, selectedPortfolioIndex]);
 
   const isFavorite = useMemo(() => {
     if (!artist) return false;
@@ -215,6 +317,105 @@ export default function ArtistDetailPage() {
     setFavoriteArtists(nextFavorites);
     writeStorage(window.localStorage, FAVORITE_STORAGE_KEY, nextFavorites);
   }
+
+  function closePortfolioModal() {
+    setSelectedPortfolioIndex(null);
+    touchStartXRef.current = null;
+    touchStartYRef.current = null;
+  }
+
+  function goToPrevPortfolioImage() {
+    if (portfolioImages.length === 0) return;
+
+    setSelectedPortfolioIndex((prev) => {
+      if (prev === null) return 0;
+      return prev === 0 ? portfolioImages.length - 1 : prev - 1;
+    });
+  }
+
+  function goToNextPortfolioImage() {
+    if (portfolioImages.length === 0) return;
+
+    setSelectedPortfolioIndex((prev) => {
+      if (prev === null) return 0;
+      return prev === portfolioImages.length - 1 ? 0 : prev + 1;
+    });
+  }
+
+  function handleTouchStart(event: React.TouchEvent<HTMLDivElement>) {
+    if (event.touches.length !== 1) return;
+
+    touchStartXRef.current = event.touches[0].clientX;
+    touchStartYRef.current = event.touches[0].clientY;
+  }
+
+  function handleTouchEnd(event: React.TouchEvent<HTMLDivElement>) {
+    if (touchStartXRef.current === null || touchStartYRef.current === null) return;
+
+    const endX = event.changedTouches[0].clientX;
+    const endY = event.changedTouches[0].clientY;
+
+    const diffX = endX - touchStartXRef.current;
+    const diffY = endY - touchStartYRef.current;
+
+    touchStartXRef.current = null;
+    touchStartYRef.current = null;
+
+    const horizontalThreshold = 50;
+    const verticalAllowance = 80;
+
+    if (Math.abs(diffX) < horizontalThreshold) return;
+    if (Math.abs(diffY) > verticalAllowance) return;
+    if (Math.abs(diffX) <= Math.abs(diffY)) return;
+
+    if (diffX < 0) {
+      goToNextPortfolioImage();
+    } else {
+      goToPrevPortfolioImage();
+    }
+  }
+
+  useEffect(() => {
+    if (selectedPortfolioIndex === null) return;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        closePortfolioModal();
+        return;
+      }
+
+      if (event.key === "ArrowLeft") {
+        goToPrevPortfolioImage();
+        return;
+      }
+
+      if (event.key === "ArrowRight") {
+        goToNextPortfolioImage();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [selectedPortfolioIndex, portfolioImages.length]);
+
+  useEffect(() => {
+    if (selectedPortfolioIndex === null) return;
+    if (!thumbnailStripRef.current) return;
+
+    const activeThumb = thumbnailStripRef.current.querySelector(
+      `[data-thumb-index="${selectedPortfolioIndex}"]`
+    ) as HTMLElement | null;
+
+    if (!activeThumb) return;
+
+    activeThumb.scrollIntoView({
+      behavior: "smooth",
+      inline: "center",
+      block: "nearest",
+    });
+  }, [selectedPortfolioIndex]);
 
   if (!artist) {
     return (
@@ -587,16 +788,18 @@ export default function ArtistDetailPage() {
               {portfolioImages.length > 0 ? (
                 <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
                   {portfolioImages.map((imageUrl, index) => (
-                    <div
+                    <button
                       key={`${imageUrl}-${index}`}
-                      className="group overflow-hidden rounded-[20px] border border-[#ebe4f4] bg-[#faf7ff]"
+                      type="button"
+                      onClick={() => setSelectedPortfolioIndex(index)}
+                      className="group overflow-hidden rounded-[20px] border border-[#ebe4f4] bg-[#faf7ff] text-left"
                     >
                       <img
                         src={imageUrl}
                         alt={`${artist.name} 포트폴리오 ${index + 1}`}
                         className="h-44 w-full object-cover transition duration-300 group-hover:scale-[1.02] md:h-56"
                       />
-                    </div>
+                    </button>
                   ))}
                 </div>
               ) : (
@@ -637,6 +840,101 @@ export default function ArtistDetailPage() {
             >
               카카오톡으로 문의하기
             </button>
+          </div>
+        </div>
+      ) : null}
+
+      {selectedPortfolioImage ? (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 px-4 py-6 md:py-8"
+          onClick={closePortfolioModal}
+        >
+          <div
+            className="relative flex w-full max-w-6xl items-center justify-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {portfolioImages.length > 1 ? (
+              <button
+                type="button"
+                onClick={goToPrevPortfolioImage}
+                className="absolute left-2 z-20 inline-flex h-12 w-12 items-center justify-center rounded-full bg-white/90 text-[24px] font-bold text-[#2b2745] shadow md:left-4"
+                aria-label="이전 이미지"
+              >
+                ‹
+              </button>
+            ) : null}
+
+            <div className="relative w-full max-w-5xl">
+              <button
+                type="button"
+                onClick={closePortfolioModal}
+                className="absolute right-3 top-3 z-20 inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/90 text-[20px] font-bold text-[#2b2745] shadow"
+                aria-label="이미지 닫기"
+              >
+                ×
+              </button>
+
+              <div className="absolute left-3 top-3 z-20 rounded-full bg-black/55 px-3 py-1.5 text-[12px] font-semibold text-white">
+                {selectedPortfolioIndex !== null ? selectedPortfolioIndex + 1 : 0} / {portfolioImages.length}
+              </div>
+
+              <div
+                className="overflow-hidden rounded-[24px] bg-white"
+                onTouchStart={handleTouchStart}
+                onTouchEnd={handleTouchEnd}
+              >
+                <img
+                  src={selectedPortfolioImage}
+                  alt="확대된 포트폴리오 이미지"
+                  className="max-h-[72vh] w-full bg-white object-contain select-none md:max-h-[78vh]"
+                  draggable={false}
+                />
+              </div>
+
+              {portfolioImages.length > 1 ? (
+                <div
+                  ref={thumbnailStripRef}
+                  className="mt-4 flex gap-2 overflow-x-auto pb-1"
+                >
+                  {portfolioImages.map((imageUrl, index) => {
+                    const isActive = index === selectedPortfolioIndex;
+
+                    return (
+                      <button
+                        key={`${imageUrl}-thumb-${index}`}
+                        type="button"
+                        data-thumb-index={index}
+                        onClick={() => setSelectedPortfolioIndex(index)}
+                        className={`shrink-0 overflow-hidden rounded-[14px] border-2 transition ${
+                          isActive
+                            ? "border-[#6d46f6] ring-2 ring-[#d9ccff]"
+                            : "border-white/20 opacity-80 hover:opacity-100"
+                        }`}
+                        aria-label={`포트폴리오 ${index + 1}번 보기`}
+                      >
+                        <img
+                          src={imageUrl}
+                          alt={`${artist.name} 포트폴리오 썸네일 ${index + 1}`}
+                          className="h-16 w-16 object-cover md:h-20 md:w-20"
+                          draggable={false}
+                        />
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </div>
+
+            {portfolioImages.length > 1 ? (
+              <button
+                type="button"
+                onClick={goToNextPortfolioImage}
+                className="absolute right-2 z-20 inline-flex h-12 w-12 items-center justify-center rounded-full bg-white/90 text-[24px] font-bold text-[#2b2745] shadow md:right-4"
+                aria-label="다음 이미지"
+              >
+                ›
+              </button>
+            ) : null}
           </div>
         </div>
       ) : null}

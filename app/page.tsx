@@ -206,7 +206,7 @@ export default function HomePage() {
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [message, setMessage] = useState(
-    "예식 날짜와 조건을 입력하면 촬영 가능한 작가를 바로 찾아볼 수 있어."
+    "예식 날짜와 조건을 입력하면 촬영 가능한 작가를 바로 찾아볼 수 있어요."
   );
 
   const [recentArtists, setRecentArtists] = useState<SavedArtist[]>([]);
@@ -606,21 +606,29 @@ export default function HomePage() {
               <div className="mt-7 max-w-[580px] rounded-[28px] border border-[#eee4f7] bg-white/95 p-4 shadow-[0_16px_36px_rgba(94,72,145,0.10)] md:p-5">
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   <div className="flex flex-col gap-2">
-                    <label className="px-1 text-[13px] font-semibold text-[#7a7297]">
-                      예식 날짜
-                    </label>
+  <label className="px-1 text-[13px] font-semibold text-[#7a7297]">
+    예식 날짜
+  </label>
 
-                    <input
-                      type="date"
-                      value={date}
-                      onChange={(e) => setDate(e.target.value)}
-                      className={`h-[52px] w-full rounded-[16px] border px-4 text-[15px] text-[#2c2843] outline-none transition appearance-none ${
-                        date
-                          ? "border-[#8a63ff] bg-[#faf7ff] shadow-[0_0_0_3px_rgba(138,99,255,0.08)]"
-                          : "border-[#ece5f5] bg-[#fcfbfe]"
-                      }`}
-                    />
-                  </div>
+  <div className="relative">
+    {!date && (
+      <span className="pointer-events-none absolute left-4 top-1/2 z-10 -translate-y-1/2 text-[15px] text-[#a59bbd]">
+        날짜 선택
+      </span>
+    )}
+
+    <input
+      type="date"
+      value={date}
+      onChange={(e) => setDate(e.target.value)}
+      className={`relative h-[52px] w-full rounded-[16px] border px-4 text-[15px] text-[#2c2843] outline-none transition appearance-none ${
+        date
+          ? "border-[#8a63ff] bg-[#faf7ff] shadow-[0_0_0_3px_rgba(138,99,255,0.08)]"
+          : "border-[#ece5f5] bg-[#fcfbfe]"
+      }`}
+    />
+  </div>
+</div>
 
                   <div className="flex flex-col gap-2">
                     <label className="px-1 text-[13px] font-semibold text-[#7a7297]">

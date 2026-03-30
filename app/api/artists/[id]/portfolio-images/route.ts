@@ -8,7 +8,7 @@ export async function PATCH(
     const { id } = await context.params;
     const body = await request.json();
 
-    const imageUrl = body?.imageUrl;
+    const imageUrls = body?.imageUrls;
 
     if (!id) {
       return NextResponse.json(
@@ -17,14 +17,31 @@ export async function PATCH(
       );
     }
 
-    if (typeof imageUrl !== "string" || !imageUrl.trim()) {
+    if (!Array.isArray(imageUrls)) {
       return NextResponse.json(
-        { error: "imageUrl이 필요해." },
+        { error: "imageUrls는 배열이어야 해." },
         { status: 400 }
       );
     }
 
-    const cleanedImageUrl = imageUrl.trim();
+    const cleanedUrls = imageUrls
+      .filter((url) => typeof url === "string")
+      .map((url) => url.trim())
+      .filter(Boolean);
+
+    if (cleanedUrls.length === 0) {
+      return NextResponse.json(
+        { error: "저장할 이미지 URL이 없어." },
+        { status: 400 }
+      );
+    }
+
+    if (cleanedUrls.length > 40) {
+      return NextResponse.json(
+        { error: "포트폴리오 이미지는 최대 40장까지만 저장할 수 있어." },
+        { status: 400 }
+      );
+    }
 
     const AIRTABLE_TOKEN = process.env.AIRTABLE_TOKEN;
     const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
@@ -39,6 +56,8 @@ export async function PATCH(
 
     const airtableUrl = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${ARTISTS_TABLE_ID}/${id}`;
 
+    const longTextValue = cleanedUrls.join("\n");
+
     const airtableResponse = await fetch(airtableUrl, {
       method: "PATCH",
       headers: {
@@ -47,11 +66,7 @@ export async function PATCH(
       },
       body: JSON.stringify({
         fields: {
-          대표사진: [
-            {
-              url: cleanedImageUrl,
-            },
-          ],
+          portfolio_images: longTextValue,
         },
       }),
     });
@@ -59,11 +74,11 @@ export async function PATCH(
     const result = await airtableResponse.json();
 
     if (!airtableResponse.ok) {
-      console.error("Airtable 대표사진 update failed:", result);
+      console.error("Airtable portfolio_images update failed:", result);
 
       return NextResponse.json(
         {
-          error: "대표사진 업데이트에 실패했어.",
+          error: "Airtable portfolio_images 업데이트에 실패했어.",
           detail: result,
         },
         { status: airtableResponse.status }
@@ -73,13 +88,14 @@ export async function PATCH(
     return NextResponse.json({
       success: true,
       record: result,
-      imageUrl: cleanedImageUrl,
+      savedCount: cleanedUrls.length,
+      imageUrls: cleanedUrls,
     });
   } catch (error) {
-    console.error("Representative image update error:", error);
+    console.error("Portfolio images update error:", error);
 
     return NextResponse.json(
-      { error: "대표사진 저장 중 오류가 발생했어." },
+      { error: "포트폴리오 이미지 저장 중 오류가 발생했어." },
       { status: 500 }
     );
   }
