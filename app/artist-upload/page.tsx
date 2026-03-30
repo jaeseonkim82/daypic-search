@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 type ArtistLookupResponse = {
@@ -35,9 +35,9 @@ type RepresentativeImageSaveResponse = {
 };
 
 const MAX_FILE_COUNT = 40;
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
-export default function ArtistUploadPage() {
+function ArtistUploadPageInner() {
   const searchParams = useSearchParams();
   const email = searchParams.get("email") || "";
 
@@ -835,5 +835,29 @@ export default function ArtistUploadPage() {
         {isUploading ? "업로드 중..." : "새 이미지 업로드"}
       </button>
     </div>
+  );
+}
+
+export default function ArtistUploadPage() {
+  return (
+    <Suspense
+      fallback={
+        <div
+          style={{
+            background: "#000",
+            minHeight: "100vh",
+            color: "#fff",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: "18px",
+          }}
+        >
+          로딩 중...
+        </div>
+      }
+    >
+      <ArtistUploadPageInner />
+    </Suspense>
   );
 }
