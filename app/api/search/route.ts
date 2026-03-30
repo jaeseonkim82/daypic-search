@@ -4,52 +4,7 @@ type AirtableRecord = {
   id: string;
   fields: Record<string, unknown>;
 };
-function pickImage(fields: Record<string, unknown>): string {
-  const candidates = [
-    fields["대표사진"],
-    fields["대표이미지"],
-    fields["대표 이미지"],
-    fields["image"],
-    fields["thumbnail"],
-  ];
 
-  for (const value of candidates) {
-    if (!value) continue;
-
-    // 문자열
-    if (typeof value === "string" && value.trim()) {
-      return value.trim();
-    }
-
-    // 배열 (Airtable attachment)
-    if (Array.isArray(value) && value.length > 0) {
-      const first = value[0];
-
-      // 그냥 문자열 배열
-      if (typeof first === "string") return first;
-
-      // attachment 구조
-      if (
-        first &&
-        typeof first === "object" &&
-        "url" in first
-      ) {
-        return String((first as any).url);
-      }
-
-      // thumbnail 구조
-      if (
-        first &&
-        typeof first === "object" &&
-        (first as any).thumbnails?.large?.url
-      ) {
-        return String((first as any).thumbnails.large.url);
-      }
-    }
-  }
-
-  return "";
-}
 type Artist = {
   id: string;
   name: string;
@@ -70,6 +25,48 @@ const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
 const ARTISTS_TABLE = process.env.AIRTABLE_ARTISTS_TABLE || "artists";
 const CLOSED_DATES_TABLE =
   process.env.AIRTABLE_CLOSED_DATES_TABLE || "closed_dates";
+
+function pickImage(fields: Record<string, unknown>): string {
+  const candidates = [
+    fields["대표사진"],
+    fields["대표이미지"],
+    fields["대표 이미지"],
+    fields["image"],
+    fields["thumbnail"],
+  ];
+
+  for (const value of candidates) {
+    if (!value) continue;
+
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+
+    if (Array.isArray(value) && value.length > 0) {
+      const first = value[0];
+
+      if (typeof first === "string") return first;
+
+      if (
+        first &&
+        typeof first === "object" &&
+        "url" in first
+      ) {
+        return String((first as any).url);
+      }
+
+      if (
+        first &&
+        typeof first === "object" &&
+        (first as any).thumbnails?.large?.url
+      ) {
+        return String((first as any).thumbnails.large.url);
+      }
+    }
+  }
+
+  return "";
+}
 
 function toArray(value: unknown): string[] {
   if (Array.isArray(value)) {
@@ -97,7 +94,7 @@ function toStringValue(value: unknown): string {
 }
 
 function normalizeText(value: string): string {
-  return value.replace(/\s/g, "").trim();
+  return value.replace(/\s/g, "").trim().toLowerCase();
 }
 
 function getField(
@@ -110,6 +107,39 @@ function getField(
     }
   }
   return undefined;
+}
+
+function formatDateToYMD(value: string): string {
+  if (!value) return "";
+
+  // 이미 YYYY-MM-DD 형태면 그대로 사용
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return value;
+  }
+
+  // ISO 형태면 앞 10자리만 사용
+  if (value.includes("T")) {
+    return value.split("T")[0];
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value.trim();
+  }
+
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function makeDateKey(email: string, date: string): string {
+  const normalizedEmail = normalizeText(email);
+  const normalizedDate = formatDateToYMD(date);
+
+  if (!normalizedEmail || !normalizedDate) return "";
+  return `${normalizedEmail}_${normalizedDate}`;
 }
 
 async function fetchAirtableRecords(tableName: string): Promise<AirtableRecord[]> {
@@ -219,7 +249,7 @@ function buildArtists(records: AirtableRecord[]): Artist[] {
         getField(fields, ["업체명", "작가명", "name", "artist_name"])
       ),
       email: toStringValue(
-        getField(fields, ["이메일", "email", "artist_email"])
+        getField(fields, ["이메일", "email", "artist_email", "작가이메일"])
       ),
       service: Array.isArray(serviceValue)
         ? toArray(serviceValue)
@@ -272,28 +302,47 @@ function matchesPrice(artist: Artist, selectedPrice: string): boolean {
 
 function isClosedOnDate(
   closedRecords: AirtableRecord[],
-  artistName: string,
+  artistEmail: string,
   selectedDate: string
 ): boolean {
   if (!selectedDate) return false;
-  if (!artistName) return false;
+  if (!artistEmail) return false;
 
-  const normalizedArtistName = normalizeText(artistName);
+  const normalizedArtistEmail = normalizeText(artistEmail);
+  const normalizedSelectedDate = formatDateToYMD(selectedDate);
+  const targetDateKey = makeDateKey(normalizedArtistEmail, normalizedSelectedDate);
 
   return closedRecords.some((record) => {
     const fields = record.fields;
 
-    const closedDate = toStringValue(
-      getField(fields, ["date", "촬영날짜", "닫힘날짜", "closed_date"])
-    );
-
-    const closedArtistName = normalizeText(
+    const closedDate = formatDateToYMD(
       toStringValue(
-        getField(fields, ["artist_name", "작가명", "업체명", "name"])
+        getField(fields, ["날짜", "date", "촬영날짜", "닫힘날짜", "closed_date"])
       )
     );
 
-    return closedDate === selectedDate && closedArtistName === normalizedArtistName;
+    const closedArtistEmail = normalizeText(
+      toStringValue(
+        getField(fields, ["작가이메일", "artist_email", "email", "이메일"])
+      )
+    );
+
+    const closedDateKey = normalizeText(
+      toStringValue(
+        getField(fields, ["date_key", "closed_key", "dateKey"])
+      )
+    );
+
+    // 1순위: date_key 직접 비교
+    if (closedDateKey && targetDateKey && closedDateKey === targetDateKey) {
+      return true;
+    }
+
+    // 2순위: 이메일 + 날짜 비교
+    return (
+      closedDate === normalizedSelectedDate &&
+      closedArtistEmail === normalizedArtistEmail
+    );
   });
 }
 
@@ -301,7 +350,7 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
 
-    const date = searchParams.get("date") || "";
+    const date = formatDateToYMD(searchParams.get("date") || "");
     const region = searchParams.get("region") || "";
     const price = searchParams.get("price") || "";
     const services = searchParams.getAll("service");
@@ -331,7 +380,7 @@ export async function GET(request: Request) {
       const matchRegion = matchesRegion(artist, region);
       const matchService = matchesService(artist, services);
       const matchPrice = matchesPrice(artist, price);
-      const matchClosed = !isClosedOnDate(closedRecords, artist.name, date);
+      const matchClosed = !isClosedOnDate(closedRecords, artist.email, date);
 
       return matchRegion && matchService && matchPrice && matchClosed;
     });
