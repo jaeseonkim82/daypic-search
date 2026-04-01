@@ -16,9 +16,6 @@ type AirtableRecord = {
 
 const AIRTABLE_TOKEN = process.env.AIRTABLE_TOKEN;
 const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
-
-// 환경변수가 있으면 그걸 쓰고,
-// 없으면 네가 확인한 실제 artists 테이블 ID를 기본값으로 사용
 const ARTISTS_TABLE =
   process.env.AIRTABLE_ARTISTS_TABLE || "tbl8u1fnfNfTzMhyI";
 
@@ -170,6 +167,43 @@ function pickImage(fields: Record<string, AirtableFieldValue>): string {
   return "";
 }
 
+function pickAttachmentUrl(value: unknown): string {
+  if (!value) return "";
+
+  if (typeof value === "string" && value.trim()) {
+    return value.trim();
+  }
+
+  if (Array.isArray(value) && value.length > 0) {
+    const first = value[0];
+
+    if (typeof first === "string" && first.trim()) {
+      return first.trim();
+    }
+
+    if (
+      first &&
+      typeof first === "object" &&
+      "url" in first &&
+      typeof (first as { url?: unknown }).url === "string"
+    ) {
+      return String((first as { url: string }).url).trim();
+    }
+
+    if (
+      first &&
+      typeof first === "object" &&
+      "thumbnails" in first &&
+      typeof (first as { thumbnails?: unknown }).thumbnails === "object" &&
+      (first as any).thumbnails?.large?.url
+    ) {
+      return String((first as any).thumbnails.large.url).trim();
+    }
+  }
+
+  return "";
+}
+
 function mapArtistRecord(record: AirtableRecord) {
   const fields = record.fields ?? {};
 
@@ -187,9 +221,19 @@ function mapArtistRecord(record: AirtableRecord) {
 
   const portfolioImages = normalizePortfolioImages(fields["portfolio_images"]);
 
+  const videoLinks = [
+    pickFirstString(fields["video_link_1"]),
+    pickFirstString(fields["video_link_2"]),
+    pickFirstString(fields["video_link_3"]),
+    pickFirstString(fields["video_link_4"]),
+  ].filter(Boolean);
+
+  const videoThumbnail = pickAttachmentUrl(fields["video_thumbnail"]);
+
   return {
     id: record.id,
     name: pickFirstString(
+      fields["업체명"],
       fields["name"],
       fields["작가명"],
       fields["작가 또는 업체명"],
@@ -225,6 +269,15 @@ function mapArtistRecord(record: AirtableRecord) {
       fields["카톡문의"]
     ),
     portfolio_images: portfolioImages,
+
+    // ✅ 영상 관련
+    artist_type: pickFirstString(fields["artist_type"]),
+    video_link_1: pickFirstString(fields["video_link_1"]),
+    video_link_2: pickFirstString(fields["video_link_2"]),
+    video_link_3: pickFirstString(fields["video_link_3"]),
+    video_link_4: pickFirstString(fields["video_link_4"]),
+    video_links: videoLinks,
+    video_thumbnail: videoThumbnail,
   };
 }
 

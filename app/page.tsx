@@ -16,6 +16,14 @@ type Artist = {
   keywords?: string[];
   openchat_url?: string;
   portfolio_images?: string[] | string;
+
+  // ✅ 영상 관련 필드
+  video_link_1?: string;
+  video_link_2?: string;
+  video_link_3?: string;
+  video_link_4?: string;
+  video_thumbnail?: string;
+  artist_type?: string;
 };
 
 type SavedArtist = {
@@ -127,7 +135,7 @@ function buildSavedArtist(artist: Artist): SavedArtist {
     region: normalizeArray(artist.region),
     price: artist.price,
     portfolio: artist.portfolio,
-    image: artist.image || "",
+    image: artist.image || artist.video_thumbnail || "",
   };
 }
 
@@ -157,10 +165,7 @@ function normalizeArtistFromApi(rawArtist: Record<string, any>): Artist {
     rawArtist["포트폴리오 이미지"] ??
     "";
 
-  const portfolioValue =
-    rawArtist.portfolio ??
-    rawArtist["포트폴리오"] ??
-    "";
+  const portfolioValue = rawArtist.portfolio ?? rawArtist["포트폴리오"] ?? "";
 
   const ratingValue =
     typeof rawArtist.rating === "number"
@@ -191,7 +196,29 @@ function normalizeArtistFromApi(rawArtist: Record<string, any>): Artist {
     keywords: normalizeArray(keywordsSource),
     openchat_url: openchatValue ? String(openchatValue) : "",
     portfolio_images: portfolioImagesValue,
+
+    // ✅ 영상 관련 필드
+    video_link_1: String(rawArtist.video_link_1 ?? ""),
+    video_link_2: String(rawArtist.video_link_2 ?? ""),
+    video_link_3: String(rawArtist.video_link_3 ?? ""),
+    video_link_4: String(rawArtist.video_link_4 ?? ""),
+    video_thumbnail: String(rawArtist.video_thumbnail ?? ""),
+    artist_type: String(rawArtist.artist_type ?? ""),
   };
+}
+
+function getPrimaryVideoLink(artist: Artist): string {
+  return (
+    artist.video_link_1 ||
+    artist.video_link_2 ||
+    artist.video_link_3 ||
+    artist.video_link_4 ||
+    ""
+  );
+}
+
+function isPureVideoSearch(selectedServices: string[]) {
+  return selectedServices.length === 1 && selectedServices[0] === "영상촬영";
 }
 
 export default function HomePage() {
@@ -297,6 +324,8 @@ export default function HomePage() {
         ...artist,
         id: String(artist.id),
         image: artist.image || FALLBACK_IMAGES[index % FALLBACK_IMAGES.length],
+        video_thumbnail:
+          artist.video_thumbnail || artist.image || FALLBACK_IMAGES[index % FALLBACK_IMAGES.length],
         rating: typeof artist.rating === "number" ? artist.rating : 4.8,
         keywords: safeKeywords,
         openchat_url: artist.openchat_url || "",
@@ -315,6 +344,11 @@ export default function HomePage() {
     if (!hasSearched) return "실시간";
     return `${displayArtists.length}명`;
   }, [displayArtists.length, hasSearched]);
+
+  const pureVideoSearch = useMemo(
+    () => isPureVideoSearch(selectedServices),
+    [selectedServices]
+  );
 
   function saveSearchPageState(scrollY?: number) {
     if (typeof window === "undefined") return;
@@ -416,6 +450,12 @@ export default function HomePage() {
         성향키워드: artist.keywords || [],
         openchat_url: artist.openchat_url || "",
         portfolio_images: artist.portfolio_images || "",
+        video_link_1: artist.video_link_1 || "",
+        video_link_2: artist.video_link_2 || "",
+        video_link_3: artist.video_link_3 || "",
+        video_link_4: artist.video_link_4 || "",
+        video_thumbnail: artist.video_thumbnail || "",
+        artist_type: artist.artist_type || "",
       },
     };
 
@@ -449,10 +489,7 @@ export default function HomePage() {
       return;
     }
 
-    const nextFavorites = [
-      buildSavedArtist(artist),
-      ...favoriteArtists,
-    ].slice(0, 30);
+    const nextFavorites = [buildSavedArtist(artist), ...favoriteArtists].slice(0, 30);
 
     setFavoriteArtists(nextFavorites);
     writeStorage(window.localStorage, FAVORITE_STORAGE_KEY, nextFavorites);
@@ -606,29 +643,29 @@ export default function HomePage() {
               <div className="mt-7 max-w-[580px] rounded-[28px] border border-[#eee4f7] bg-white/95 p-4 shadow-[0_16px_36px_rgba(94,72,145,0.10)] md:p-5">
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   <div className="flex flex-col gap-2">
-  <label className="px-1 text-[13px] font-semibold text-[#7a7297]">
-    예식 날짜
-  </label>
+                    <label className="px-1 text-[13px] font-semibold text-[#7a7297]">
+                      예식 날짜
+                    </label>
 
-  <div className="relative">
-    {!date && (
-      <span className="pointer-events-none absolute left-4 top-1/2 z-10 -translate-y-1/2 text-[15px] text-[#a59bbd]">
-        날짜 선택
-      </span>
-    )}
+                    <div className="relative">
+                      {!date && (
+                        <span className="pointer-events-none absolute left-4 top-1/2 z-10 -translate-y-1/2 text-[15px] text-[#a59bbd]">
+                          날짜 선택
+                        </span>
+                      )}
 
-    <input
-      type="date"
-      value={date}
-      onChange={(e) => setDate(e.target.value)}
-      className={`relative h-[52px] w-full rounded-[16px] border px-4 text-[15px] text-[#2c2843] outline-none transition appearance-none ${
-        date
-          ? "border-[#8a63ff] bg-[#faf7ff] shadow-[0_0_0_3px_rgba(138,99,255,0.08)]"
-          : "border-[#ece5f5] bg-[#fcfbfe]"
-      }`}
-    />
-  </div>
-</div>
+                      <input
+                        type="date"
+                        value={date}
+                        onChange={(e) => setDate(e.target.value)}
+                        className={`relative h-[52px] w-full rounded-[16px] border px-4 text-[15px] text-[#2c2843] outline-none transition appearance-none ${
+                          date
+                            ? "border-[#8a63ff] bg-[#faf7ff] shadow-[0_0_0_3px_rgba(138,99,255,0.08)]"
+                            : "border-[#ece5f5] bg-[#fcfbfe]"
+                        }`}
+                      />
+                    </div>
+                  </div>
 
                   <div className="flex flex-col gap-2">
                     <label className="px-1 text-[13px] font-semibold text-[#7a7297]">
@@ -1030,6 +1067,125 @@ export default function HomePage() {
               {displayArtists.length > 0 ? (
                 displayArtists.map((artist) => {
                   const favorite = isFavorite(String(artist.id));
+                  const primaryVideoLink = getPrimaryVideoLink(artist);
+                  const renderVideoCard = pureVideoSearch;
+
+                  if (renderVideoCard) {
+                    return (
+                      <article
+                        key={String(artist.id)}
+                        onClick={() => goToArtistDetail(artist)}
+                        className="group cursor-pointer overflow-hidden rounded-[26px] border border-[#e8dff3] bg-white shadow-[0_8px_24px_rgba(60,50,100,0.06)] transition hover:-translate-y-[4px] hover:shadow-[0_22px_40px_rgba(60,50,100,0.12)]"
+                      >
+                        <div className="relative aspect-[16/10] overflow-hidden bg-[#f1ebf8]">
+                          <img
+                            src={artist.video_thumbnail || artist.image}
+                            alt={artist.name}
+                            className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.05]"
+                          />
+
+                          <div className="absolute left-3 top-3 z-10 rounded-full bg-black/60 px-3 py-1 text-[11px] font-semibold text-white backdrop-blur-sm">
+                            VIDEO PORTFOLIO
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={(event) => toggleFavorite(event, artist)}
+                            className={`absolute right-3 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full border backdrop-blur-sm ${
+                              favorite
+                                ? "border-[#ffbdd4] bg-[#ffedf5] text-[#ff5c9a]"
+                                : "border-white/70 bg-white/85 text-[#6a617f]"
+                            }`}
+                            aria-label={favorite ? "찜 해제" : "찜하기"}
+                          >
+                            {favorite ? "❤" : "♡"}
+                          </button>
+
+                          {primaryVideoLink ? (
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                saveSearchPageState(window.scrollY);
+                                saveRecentArtist(artist);
+                                window.open(primaryVideoLink, "_blank", "noopener,noreferrer");
+                              }}
+                              className="absolute bottom-3 right-3 z-10 rounded-full bg-white/90 px-4 py-2 text-[12px] font-bold text-[#4f3ccf] shadow-sm"
+                            >
+                              영상 보기
+                            </button>
+                          ) : null}
+                        </div>
+
+                        <div className="p-4">
+                          <h3 className="truncate text-[19px] font-bold tracking-[-0.03em] text-[#272347]">
+                            {artist.name}
+                          </h3>
+
+                          <p className="mt-1 truncate text-[13px] text-[#6a6384]">
+                            {joinLabel(artist.region)}
+                          </p>
+
+                          <p className="mt-1 truncate text-[13px] text-[#8d63ff]">
+                            {joinLabel(artist.service)}
+                          </p>
+
+                          <p className="mt-3 text-[14px] font-semibold text-[#4b4468]">
+                            {artist.price}
+                          </p>
+
+                          <div className="mt-3 text-[13px] text-[#6d6786]">
+                            <span className="font-semibold text-[#f3a51c]">
+                              ★ {artist.rating?.toFixed(1)}
+                            </span>
+                          </div>
+
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {artist.keywords?.slice(0, 4).map((keyword) => (
+                              <span
+                                key={keyword}
+                                className="rounded-full bg-[#f2ebff] px-2.5 py-1 text-[11px] font-medium text-[#7652ea]"
+                              >
+                                {keyword}
+                              </span>
+                            ))}
+                          </div>
+
+                          <div className="mt-4 grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                goToArtistDetail(artist);
+                              }}
+                              className="h-10 rounded-[14px] bg-[#f3effb] text-[13px] font-semibold text-[#5b47c8]"
+                            >
+                              상세페이지
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                if (!primaryVideoLink) return;
+                                saveSearchPageState(window.scrollY);
+                                saveRecentArtist(artist);
+                                window.open(primaryVideoLink, "_blank", "noopener,noreferrer");
+                              }}
+                              disabled={!primaryVideoLink}
+                              className={`h-10 rounded-[14px] text-[13px] font-semibold ${
+                                primaryVideoLink
+                                  ? "bg-[#6d46f6] text-white"
+                                  : "bg-[#ece8f6] text-[#9a93b1]"
+                              }`}
+                            >
+                              {primaryVideoLink ? "영상 포트폴리오" : "준비중"}
+                            </button>
+                          </div>
+                        </div>
+                      </article>
+                    );
+                  }
 
                   return (
                     <article
@@ -1077,12 +1233,12 @@ export default function HomePage() {
 
                         <div className="mt-3 text-[13px] text-[#6d6786]">
                           <span className="font-semibold text-[#f3a51c]">
-                            ★ {artist.rating.toFixed(1)}
+                            ★ {artist.rating?.toFixed(1)}
                           </span>
                         </div>
 
                         <div className="mt-3 flex flex-wrap gap-2">
-                          {artist.keywords.slice(0, 4).map((keyword) => (
+                          {artist.keywords?.slice(0, 4).map((keyword) => (
                             <span
                               key={keyword}
                               className="rounded-full bg-[#f2ebff] px-2.5 py-1 text-[11px] font-medium text-[#7652ea]"

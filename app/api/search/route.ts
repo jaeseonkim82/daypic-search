@@ -18,6 +18,14 @@ type Artist = {
   keywords?: string[];
   openchat_url?: string;
   portfolio_images?: string[] | string;
+
+  // ✅ 영상 관련 필드 추가
+  video_link_1?: string;
+  video_link_2?: string;
+  video_link_3?: string;
+  video_link_4?: string;
+  video_thumbnail?: string;
+  artist_type?: string;
 };
 
 const AIRTABLE_TOKEN = process.env.AIRTABLE_TOKEN;
@@ -45,14 +53,10 @@ function pickImage(fields: Record<string, unknown>): string {
     if (Array.isArray(value) && value.length > 0) {
       const first = value[0];
 
-      if (typeof first === "string") return first;
+      if (typeof first === "string") return first.trim();
 
-      if (
-        first &&
-        typeof first === "object" &&
-        "url" in first
-      ) {
-        return String((first as any).url);
+      if (first && typeof first === "object" && "url" in first) {
+        return String((first as { url?: unknown }).url || "").trim();
       }
 
       if (
@@ -60,8 +64,38 @@ function pickImage(fields: Record<string, unknown>): string {
         typeof first === "object" &&
         (first as any).thumbnails?.large?.url
       ) {
-        return String((first as any).thumbnails.large.url);
+        return String((first as any).thumbnails.large.url).trim();
       }
+    }
+  }
+
+  return "";
+}
+
+function pickAttachmentUrl(value: unknown): string {
+  if (!value) return "";
+
+  if (typeof value === "string" && value.trim()) {
+    return value.trim();
+  }
+
+  if (Array.isArray(value) && value.length > 0) {
+    const first = value[0];
+
+    if (typeof first === "string" && first.trim()) {
+      return first.trim();
+    }
+
+    if (first && typeof first === "object" && "url" in first) {
+      return String((first as { url?: unknown }).url || "").trim();
+    }
+
+    if (
+      first &&
+      typeof first === "object" &&
+      (first as any).thumbnails?.large?.url
+    ) {
+      return String((first as any).thumbnails.large.url).trim();
     }
   }
 
@@ -112,12 +146,10 @@ function getField(
 function formatDateToYMD(value: string): string {
   if (!value) return "";
 
-  // 이미 YYYY-MM-DD 형태면 그대로 사용
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     return value;
   }
 
-  // ISO 형태면 앞 10자리만 사용
   if (value.includes("T")) {
     return value.split("T")[0];
   }
@@ -268,6 +300,14 @@ function buildArtists(records: AirtableRecord[]): Artist[] {
       portfolio_images: Array.isArray(portfolioImagesValue)
         ? toArray(portfolioImagesValue)
         : toStringValue(portfolioImagesValue),
+
+      // ✅ 영상 관련 필드
+      video_link_1: toStringValue(getField(fields, ["video_link_1"])),
+      video_link_2: toStringValue(getField(fields, ["video_link_2"])),
+      video_link_3: toStringValue(getField(fields, ["video_link_3"])),
+      video_link_4: toStringValue(getField(fields, ["video_link_4"])),
+      video_thumbnail: pickAttachmentUrl(getField(fields, ["video_thumbnail"])),
+      artist_type: toStringValue(getField(fields, ["artist_type"])),
     };
   });
 }
@@ -328,17 +368,13 @@ function isClosedOnDate(
     );
 
     const closedDateKey = normalizeText(
-      toStringValue(
-        getField(fields, ["date_key", "closed_key", "dateKey"])
-      )
+      toStringValue(getField(fields, ["date_key", "closed_key", "dateKey"]))
     );
 
-    // 1순위: date_key 직접 비교
     if (closedDateKey && targetDateKey && closedDateKey === targetDateKey) {
       return true;
     }
 
-    // 2순위: 이메일 + 날짜 비교
     return (
       closedDate === normalizedSelectedDate &&
       closedArtistEmail === normalizedArtistEmail
