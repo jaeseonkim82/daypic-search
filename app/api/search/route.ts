@@ -412,20 +412,22 @@ export async function GET(request: Request) {
 
     const allArtists = buildArtists(artistRecords);
 
-    const filteredArtists = allArtists.filter((artist) => {
-      const matchRegion = matchesRegion(artist, region);
-      const matchService = matchesService(artist, services);
-      const matchPrice = matchesPrice(artist, price);
-      const matchClosed = !isClosedOnDate(closedRecords, artist.email, date);
+   const filteredArtists = allArtists.filter((artist) => {
+  const matchRegion = matchesRegion(artist, region);
+  const matchService = matchesService(artist, services);
+  const matchPrice = matchesPrice(artist, price);
+  const matchClosed = !isClosedOnDate(closedRecords, artist.email, date);
 
-      return matchRegion && matchService && matchPrice && matchClosed;
-    });
+  return matchRegion && matchService && matchPrice && matchClosed;
+});
+
+const shuffledArtists = [...filteredArtists].sort(() => Math.random() - 0.5);
 
     return NextResponse.json({
-      ok: true,
-      artists: filteredArtists,
-      total: filteredArtists.length,
-    });
+  ok: true,
+  artists: shuffledArtists,
+  total: shuffledArtists.length,
+});
   } catch (error) {
     console.error("Search API error:", error);
 
