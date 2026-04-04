@@ -501,49 +501,7 @@ function ArtistUploadPageInner() {
 
   return (
     <main className="min-h-screen bg-[#faf7fc] text-[#251f3c]">
-      <header className="sticky top-0 z-40 border-b border-[#ece4f5] bg-white/88 backdrop-blur">
-        <div className="mx-auto flex max-w-[1440px] items-center justify-between px-5 py-4 md:px-8">
-          <Link href="/" className="inline-flex items-center">
-            <img
-              src="/daypic_logo.png"
-              alt="DayPic 로고"
-              className="h-11 w-auto object-contain"
-            />
-          </Link>
-
-          <nav className="hidden items-center gap-3 md:flex">
-            <Link href="/artist-dashboard" className={headerButtonClass}>
-              대시보드 돌아가기
-            </Link>
-            <Link href="/artist-calendar" className={headerButtonClass}>
-              일정 관리
-            </Link>
-            <a
-              href={ADMIN_INQUIRY_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={headerButtonClass}
-            >
-              관리자 문의
-            </a>
-          </nav>
-
-          <div className="flex items-center gap-2 md:hidden">
-            <Link
-              href="/artist-dashboard"
-              className="inline-flex h-[40px] min-w-[92px] items-center justify-center rounded-full border border-[#dccff2] bg-white px-4 text-[12px] font-semibold text-[#4d426b]"
-            >
-              대시보드
-            </Link>
-            <Link
-              href="/artist-calendar"
-              className="inline-flex h-[40px] min-w-[92px] items-center justify-center rounded-full border border-[#dccff2] bg-white px-4 text-[12px] font-semibold text-[#4d426b]"
-            >
-              일정 관리
-            </Link>
-          </div>
-        </div>
-      </header>
+     
 
       <div className="mx-auto max-w-[1440px] px-5 pb-16 pt-8 md:px-8 md:pt-10">
         <section className="overflow-hidden rounded-[38px] border border-[#ece3f6] bg-[radial-gradient(circle_at_top_left,_rgba(144,110,255,0.14),_transparent_32%),radial-gradient(circle_at_bottom_right,_rgba(244,170,214,0.12),_transparent_24%),linear-gradient(135deg,_#ffffff_0%,_#fcf9ff_52%,_#f8f3fb_100%)] p-6 shadow-[0_18px_40px_rgba(78,58,130,0.08)] md:p-8 xl:p-10">
@@ -561,7 +519,7 @@ function ArtistUploadPageInner() {
 
               <p className="mt-5 max-w-[760px] text-[16px] leading-8 text-[#6f6888]">
                 업로드된 사진은 고객이 작가님의 분위기와 디테일을 빠르게 이해하는 데
-                중요한 역할을 합니다. 대표이미지와 포트폴리오를 정리해 두면 문의
+                중요한 역할을 합니다. <br></br>대표이미지와 포트폴리오를 정리해 두면 문의
                 연결에도 도움이 됩니다.
               </p>
 

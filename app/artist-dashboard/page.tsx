@@ -93,49 +93,7 @@ export default function ArtistDashboardPage() {
 
   return (
     <main className="min-h-screen bg-[#faf7fc] text-[#251f3c]">
-      <header className="sticky top-0 z-40 border-b border-[#ece4f5] bg-white/88 backdrop-blur">
-        <div className="mx-auto flex max-w-[1440px] items-center justify-between px-5 py-4 md:px-8">
-          <Link href="/" className="inline-flex items-center">
-            <img
-              src="/daypic_logo.png"
-              alt="DayPic 로고"
-              className="h-11 w-auto object-contain"
-            />
-          </Link>
-
-          <nav className="hidden items-center gap-3 md:flex">
-            <Link href="/" className={headerButtonClass}>
-              홈으로 돌아가기
-            </Link>
-            <Link href="/search" className={headerButtonClass}>
-              가능한 작가 찾기
-            </Link>
-            <a
-              href={ADMIN_INQUIRY_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={headerButtonClass}
-            >
-              관리자 문의
-            </a>
-          </nav>
-
-          <div className="flex items-center gap-2 md:hidden">
-            <Link
-              href="/"
-              className="inline-flex h-[40px] min-w-[92px] items-center justify-center rounded-full border border-[#dccff2] bg-white px-4 text-[12px] font-semibold text-[#4d426b]"
-            >
-              홈
-            </Link>
-            <Link
-              href="/search"
-              className="inline-flex h-[40px] min-w-[92px] items-center justify-center rounded-full border border-[#dccff2] bg-white px-4 text-[12px] font-semibold text-[#4d426b]"
-            >
-              작가 찾기
-            </Link>
-          </div>
-        </div>
-      </header>
+      
 
       <div className="mx-auto max-w-[1440px] px-5 pb-16 pt-8 md:px-8 md:pt-10">
         <section className="overflow-hidden rounded-[38px] border border-[#ece3f6] bg-[radial-gradient(circle_at_top_left,_rgba(144,110,255,0.14),_transparent_32%),radial-gradient(circle_at_bottom_right,_rgba(244,170,214,0.12),_transparent_24%),linear-gradient(135deg,_#ffffff_0%,_#fcf9ff_52%,_#f8f3fb_100%)] p-6 shadow-[0_18px_40px_rgba(78,58,130,0.08)] md:p-8 xl:p-10">

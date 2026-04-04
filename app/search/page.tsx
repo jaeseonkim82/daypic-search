@@ -572,54 +572,7 @@ export default function HomePage() {
 
   return (
     <main className="min-h-screen bg-[#faf7fc] text-[#251f3c]">
-      <header className="sticky top-0 z-40 border-b border-[#ece4f5] bg-white/80 backdrop-blur">
-        <div className="mx-auto flex max-w-[1540px] items-center justify-between px-5 py-4 md:px-8">
-          <a
-            href="https://ddaypic.com"
-            className="inline-flex items-center transition hover:opacity-80"
-          >
-            <img
-              src="/daypic_logo.png"
-              alt="daypic logo"
-              className="h-11 w-auto object-contain"
-            />
-          </a>
-
-          <div className="flex items-center gap-2 md:hidden">
-            <button
-              type="button"
-              onClick={handleChecklistClick}
-              className="rounded-full border border-[#e8ddf5] bg-white px-3 py-2 text-[12px] font-semibold text-[#665d82]"
-            >
-              체크리스트
-            </button>
-            <button
-              type="button"
-              onClick={handleTipsClick}
-              className="rounded-full border border-[#e8ddf5] bg-white px-3 py-2 text-[12px] font-semibold text-[#665d82]"
-            >
-              본식꿀팁
-            </button>
-          </div>
-
-          <div className="hidden items-center gap-3 md:flex">
-            <button
-              type="button"
-              onClick={handleChecklistClick}
-              className="rounded-full border border-[#e8ddf5] bg-white px-4 py-2 text-[13px] font-semibold text-[#665d82]"
-            >
-              결혼준비 체크리스트
-            </button>
-            <button
-              type="button"
-              onClick={handleTipsClick}
-              className="rounded-full border border-[#e8ddf5] bg-white px-4 py-2 text-[13px] font-semibold text-[#665d82]"
-            >
-              꿀팁 콘텐츠
-            </button>
-          </div>
-        </div>
-      </header>
+  
 
       <div className="mx-auto max-w-[1540px] px-5 pb-12 pt-6 md:px-8 md:pt-8">
         <section className="relative rounded-[40px] border border-[#eee5f7] bg-[radial-gradient(circle_at_top_left,_rgba(164,133,255,0.18),_transparent_32%),radial-gradient(circle_at_bottom_right,_rgba(244,170,214,0.18),_transparent_25%),linear-gradient(135deg,_#ffffff_0%,_#fcf9ff_45%,_#f8f3fb_100%)] p-5 shadow-[0_18px_50px_rgba(95,71,147,0.08)] md:p-8 xl:p-10">
@@ -872,7 +825,7 @@ export default function HomePage() {
               <button
                 type="button"
                 onClick={handleChecklistClick}
-                className="hidden md:flex min-h-[122px] items-center gap-4 rounded-[28px] border border-[#eee3f7] bg-white/95 p-5 text-left shadow-[0_14px_30px_rgba(83,63,125,0.08)]"
+                className="flex min-h-[122px] items-center gap-4 rounded-[28px] border border-[#eee3f7] bg-white/95 p-5 text-left shadow-[0_14px_30px_rgba(83,63,125,0.08)]"
               >
                 <div className="flex h-16 w-16 items-center justify-center rounded-[22px] bg-gradient-to-br from-[#845ef7] to-[#dc68b7] text-[26px] text-white">
                   ✓
@@ -893,7 +846,7 @@ export default function HomePage() {
               <button
                 type="button"
                 onClick={handleTipsClick}
-                className="hidden md:flex min-h-[122px] items-center gap-4 rounded-[28px] border border-[#eee3f7] bg-white/95 p-5 text-left shadow-[0_14px_30px_rgba(83,63,125,0.08)]"
+                className="flex min-h-[122px] items-center gap-4 rounded-[28px] border border-[#eee3f7] bg-white/95 p-5 text-left shadow-[0_14px_30px_rgba(83,63,125,0.08)]"
               >
                 <div className="flex h-16 w-16 items-center justify-center rounded-[22px] bg-gradient-to-br from-[#8a63ff] to-[#f064b7] text-[26px] text-white">
                   ✦

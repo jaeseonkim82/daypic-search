@@ -59,6 +59,12 @@ async function findArtistByUserId(userId: string): Promise<AirtableRecord | null
 }
 
 const handler = NextAuth({
+  secret: process.env.NEXTAUTH_SECRET,
+  session: {
+    strategy: "jwt",
+  },
+  debug: true,
+
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
@@ -88,12 +94,12 @@ const handler = NextAuth({
         const airtableUser = await findUserByEmail(user.email);
 
         if (airtableUser?.fields?.user_id) {
-          customToken.userId = airtableUser.fields.user_id;
+          customToken.userId = String(airtableUser.fields.user_id);
 
-          const artist = await findArtistByUserId(airtableUser.fields.user_id);
+          const artist = await findArtistByUserId(String(airtableUser.fields.user_id));
 
           if (artist?.fields?.artist_id) {
-            customToken.artistId = artist.fields.artist_id;
+            customToken.artistId = String(artist.fields.artist_id);
           }
         }
       }
@@ -107,8 +113,10 @@ const handler = NextAuth({
         artistId?: string;
       };
 
-      (session.user as any).userId = customToken.userId;
-      (session.user as any).artistId = customToken.artistId;
+      if (session.user) {
+        (session.user as any).userId = customToken.userId ?? null;
+        (session.user as any).artistId = customToken.artistId ?? null;
+      }
 
       return session;
     },
