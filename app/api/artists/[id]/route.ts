@@ -168,17 +168,12 @@ function toAttachmentFieldValue(url: string) {
 function normalizeArtist(record: AirtableRecord) {
   const fields = record.fields || {};
 
-  const portfolioImagesRaw =
-    pickFirstValue(fields, [
-      "portfolio_images",
-      "portfolioImages",
-      "포트폴리오이미지",
-      "포트폴리오 이미지",
-    ]) || [];
-
-  const portfolioImages = Array.isArray(portfolioImagesRaw)
-    ? portfolioImagesRaw
-    : [];
+  const portfolioImages = pickFirstArray(fields, [
+  "portfolio_images",
+  "portfolioImages",
+  "포트폴리오이미지",
+  "포트폴리오 이미지",
+]);
 
   const styleKeywords = pickFirstArray(fields, [
     "style_keywords",
@@ -285,14 +280,25 @@ function normalizeArtist(record: AirtableRecord) {
 
     portfolio_images: portfolioImages,
 
-    image: pickFirstString(fields, [
+    image:
+  normalizeSingleAttachmentUrl(
+    pickFirstValue(fields, [
       "image",
       "main_image",
       "대표이미지",
       "대표 이미지",
+      "대표사진",
       "thumbnail",
-    ]),
-
+    ])
+  ) ||
+  pickFirstString(fields, [
+    "image",
+    "main_image",
+    "대표이미지",
+    "대표 이미지",
+    "대표사진",
+    "thumbnail",
+  ]),
     rating:
       typeof pickFirstValue(fields, ["rating", "평점"]) === "number"
         ? pickFirstValue(fields, ["rating", "평점"])
