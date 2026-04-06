@@ -10,8 +10,11 @@ type CalendarDay = {
 
 type MeResponse = {
   ok: boolean;
-  userId: string | null;
+  isLoggedIn: boolean;
+  isArtist: boolean;
   artistId: string | null;
+  artistCode?: string | null;
+  kakaoId?: string | null;
   email: string | null;
   name: string | null;
 };
@@ -94,7 +97,6 @@ async function fetchWithTimeout(
 export default function ArtistCalendarPage() {
   const [sessionReady, setSessionReady] = useState(false);
   const [sessionEmail, setSessionEmail] = useState("");
-  const [sessionUserId, setSessionUserId] = useState("");
   const [sessionArtistId, setSessionArtistId] = useState("");
 
   const [currentMonth, setCurrentMonth] = useState(() => {
@@ -113,31 +115,35 @@ export default function ArtistCalendarPage() {
   const isBlocked = selectedDate ? blockedDates.includes(selectedDate) : false;
 
   useEffect(() => {
-  async function loadSession() {
-    try {
-      setError("");
+    async function loadSession() {
+      try {
+        setError("");
 
-      const res = await fetchWithTimeout("/api/me", { cache: "no-store" }, 10000);
-      const data: MeResponse = await res.json();
+        const res = await fetchWithTimeout("/api/me", { cache: "no-store" }, 10000);
+        const data: MeResponse = await res.json();
 
-      if (!res.ok || !data.ok || !data.userId || !data.artistId) {
-        window.location.href = "/api/auth/signin";
+        if (!res.ok || !data.ok || !data.isLoggedIn) {
+          window.location.href = "/login";
+          return;
+        }
+
+        if (!data.isArtist || !data.artistId) {
+          window.location.href = "/artist-register";
+          return;
+        }
+
+        setSessionArtistId(data.artistId);
+        setSessionEmail(data.email || "");
+      } catch (err) {
+        window.location.href = "/login";
         return;
+      } finally {
+        setSessionReady(true);
       }
-
-      setSessionUserId(data.userId);
-      setSessionArtistId(data.artistId);
-      setSessionEmail(data.email || "");
-    } catch (err) {
-      window.location.href = "/api/auth/signin";
-      return;
-    } finally {
-      setSessionReady(true);
     }
-  }
 
-  loadSession();
-}, []);
+    loadSession();
+  }, []);
 
   useEffect(() => {
     if (!selectedDate && days.length > 0) {
@@ -149,7 +155,7 @@ export default function ArtistCalendarPage() {
   useEffect(() => {
     async function loadBlockedDates() {
       if (!sessionReady) return;
-      if (!sessionArtistId || !sessionUserId) return;
+      if (!sessionArtistId) return;
 
       try {
         setIsLoading(true);
@@ -185,10 +191,10 @@ export default function ArtistCalendarPage() {
     }
 
     loadBlockedDates();
-  }, [sessionReady, sessionArtistId, sessionUserId]);
+  }, [sessionReady, sessionArtistId]);
 
   async function handleRegisterBlocked() {
-    if (!selectedDate || !sessionArtistId || !sessionUserId || isSaving) return;
+    if (!selectedDate || !sessionArtistId || isSaving) return;
 
     try {
       setIsSaving(true);
@@ -240,7 +246,7 @@ export default function ArtistCalendarPage() {
   }
 
   async function handleReleaseBlocked() {
-    if (!selectedDate || !sessionArtistId || !sessionUserId || isSaving) return;
+    if (!selectedDate || !sessionArtistId || isSaving) return;
 
     try {
       setIsSaving(true);
@@ -349,6 +355,7 @@ export default function ArtistCalendarPage() {
             <div className="label">선택한 날짜</div>
             <div className="date">{selectedDate || "-"}</div>
             <div className="status">현재 상태: {isBlocked ? "촬영 불가" : "촬영 가능"}</div>
+            {!!sessionEmail && <div className="subinfo">{sessionEmail}</div>}
           </div>
 
           <div className="buttons">
@@ -356,7 +363,7 @@ export default function ArtistCalendarPage() {
               type="button"
               className="primaryBtn"
               onClick={handleRegisterBlocked}
-              disabled={!selectedDate || !sessionArtistId || !sessionUserId || isSaving}
+              disabled={!selectedDate || !sessionArtistId || isSaving}
             >
               {isSaving ? "처리 중..." : "촬영 불가 등록"}
             </button>
@@ -365,14 +372,12 @@ export default function ArtistCalendarPage() {
               type="button"
               className="secondaryBtn"
               onClick={handleReleaseBlocked}
-              disabled={!selectedDate || !sessionArtistId || !sessionUserId || isSaving}
+              disabled={!selectedDate || !sessionArtistId || isSaving}
             >
               해제
             </button>
           </div>
         </section>
-
-      
       </div>
 
       <style jsx>{`
@@ -586,6 +591,12 @@ export default function ArtistCalendarPage() {
           color: #6b6292;
         }
 
+        .subinfo {
+          margin-top: 8px;
+          font-size: 13px;
+          color: #8a82a8;
+        }
+
         .buttons {
           display: flex;
           gap: 12px;
@@ -622,14 +633,6 @@ export default function ArtistCalendarPage() {
         .secondaryBtn:disabled {
           opacity: 0.5;
           cursor: not-allowed;
-        }
-
-        .debug {
-          margin-top: 18px;
-          text-align: center;
-          font-size: 13px;
-          color: #847ca4;
-          font-weight: 600;
         }
 
         @media (max-width: 900px) {

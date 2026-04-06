@@ -7,8 +7,11 @@ type MeResponse = {
   ok: boolean;
   userId: string | null;
   artistId: string | null;
+  kakaoId: string | null;
   email: string | null;
   name: string | null;
+  isLoggedIn: boolean;
+  isArtist: boolean;
   services?: string[];
 };
 
@@ -52,10 +55,15 @@ export default function ArtistDashboardPage() {
         const res = await fetchWithTimeout("/api/me", { cache: "no-store" }, 10000);
         const data: MeResponse = await res.json();
 
-        if (!res.ok || !data.ok || !data.userId || !data.artistId) {
-          window.location.href = "/api/auth/signin";
-          return;
-        }
+        if (!res.ok || !data.ok || !data.isLoggedIn) {
+  window.location.href = "/login";
+  return;
+}
+
+if (!data.isArtist) {
+  window.location.href = "/artist-register";
+  return;
+}
 
         setArtistName(data.name || "작가님");
         setArtistId(data.artistId || "");

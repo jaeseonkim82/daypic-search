@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 const ADMIN_INQUIRY_URL = "https://pf.kakao.com/_YOUR_CHANNEL_LINK";
 
@@ -30,6 +30,7 @@ const REGION_OPTIONS = [
   "전라도",
   "강원도",
   "충청도",
+  "제주도",
 ];
 
 const PRICE_OPTIONS = [
@@ -84,6 +85,17 @@ type FormState = {
   openchatUrl: string;
 };
 
+type MeResponse = {
+  ok: boolean;
+  userId: string | null;
+  artistId: string | null;
+  kakaoId: string | null;
+  email: string | null;
+  name: string | null;
+  isLoggedIn: boolean;
+  isArtist: boolean;
+};
+
 const initialFormState: FormState = {
   companyName: "",
   email: "",
@@ -97,13 +109,11 @@ const initialFormState: FormState = {
 };
 
 function MultiSelectDropdown({
-  label,
   placeholder,
   options,
   value,
   onChange,
 }: {
-  label: string;
   placeholder: string;
   options: string[];
   value: string[];
@@ -111,6 +121,20 @@ function MultiSelectDropdown({
 }) {
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (!wrapperRef.current) return;
+      if (!wrapperRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   const toggleValue = (option: string) => {
     if (value.includes(option)) {
@@ -120,8 +144,7 @@ function MultiSelectDropdown({
     onChange([...value, option]);
   };
 
-  const selectedText =
-    value.length > 0 ? value.join(", ") : placeholder;
+  const selectedText = value.length > 0 ? value.join(", ") : placeholder;
 
   return (
     <div className="relative" ref={wrapperRef}>
@@ -161,7 +184,7 @@ function MultiSelectDropdown({
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="inline-flex h-[40px] items-center justify-center rounded-full border border-[#dccccf2] px-4 text-sm font-semibold text-[#5d4f8a]"
+              className="inline-flex h-[40px] items-center justify-center rounded-full border border-[#dccff2] px-4 text-sm font-semibold text-[#5d4f8a]"
             >
               선택 완료
             </button>
@@ -204,18 +227,66 @@ export default function ArtistRegisterPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitMessage, setSubmitMessage] = useState("");
   const [submitError, setSubmitError] = useState("");
+  const [me, setMe] = useState<MeResponse | null>(null);
+  const [isMeLoading, setIsMeLoading] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function fetchMe() {
+      try {
+        const res = await fetch("/api/me", { cache: "no-store" });
+        const data: MeResponse = await res.json();
+
+        if (!mounted) return;
+
+        setMe(data);
+
+        if (!data?.isLoggedIn) {
+          window.location.href = "/login";
+          return;
+        }
+
+        if (data?.isArtist) {
+          window.location.href = "/artist-dashboard";
+          return;
+        }
+
+        setForm((prev) => ({
+          ...prev,
+          email: prev.email || data.email || "",
+          companyName: prev.companyName || data.name || "",
+        }));
+      } catch (error) {
+        console.error("artist-register /api/me 조회 실패:", error);
+        if (mounted) {
+          setMe(null);
+        }
+      } finally {
+        if (mounted) {
+          setIsMeLoading(false);
+        }
+      }
+    }
+
+    fetchMe();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const isFormValid = useMemo(() => {
     return (
-      form.companyName.trim() &&
-      form.email.trim() &&
-      form.phone.trim() &&
+      !!form.companyName.trim() &&
+      !!form.email.trim() &&
+      !!form.phone.trim() &&
       form.services.length > 0 &&
       form.regions.length > 0 &&
-      form.price.trim() &&
+      !!form.price.trim() &&
       form.styleKeywords.length > 0 &&
-      form.portfolioUrl.trim() &&
-      form.openchatUrl.trim()
+      !!form.portfolioUrl.trim() &&
+      !!form.openchatUrl.trim()
     );
   }, [form]);
 
@@ -234,8 +305,18 @@ export default function ArtistRegisterPage() {
     setSubmitMessage("");
     setSubmitError("");
 
+    if (isMeLoading) {
+      setSubmitError("로그인 상태를 확인 중이야. 잠시 후 다시 시도해줘.");
+      return;
+    }
+
+    if (!me?.isLoggedIn) {
+      setSubmitError("로그인이 필요해. 다시 로그인해줘.");
+      return;
+    }
+
     if (!isFormValid) {
-      setSubmitError("필수 항목을 모두 입력해 주세요.");
+      setSubmitError("필수 항목을 모두 입력해줘.");
       return;
     }
 
@@ -247,22 +328,28 @@ export default function ArtistRegisterPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          userId: me?.userId ?? "",
+          kakaoId: me?.kakaoId ?? "",
+        }),
       });
 
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result?.error || "등록 중 문제가 발생했습니다.");
+        throw new Error(result?.error || "등록 중 문제가 발생했어.");
       }
 
-      setSubmitMessage("작가 정보가 정상적으로 등록되었습니다.");
-      setForm(initialFormState);
+      setSubmitMessage("작가 정보가 정상적으로 등록되었어. 대시보드로 이동할게.");
+      setTimeout(() => {
+        window.location.href = "/artist-dashboard";
+      }, 700);
     } catch (error) {
       const message =
         error instanceof Error
           ? error.message
-          : "작가 정보 등록 중 오류가 발생했습니다.";
+          : "작가 정보 등록 중 오류가 발생했어.";
 
       setSubmitError(message);
     } finally {
@@ -272,24 +359,33 @@ export default function ArtistRegisterPage() {
 
   return (
     <main className="min-h-screen bg-[#faf7fc] text-[#251f3c]">
-      
-
       <div className="mx-auto max-w-[1440px] px-5 pb-20 pt-8 md:px-8 md:pt-10">
         <section className="relative overflow-hidden rounded-[38px] border border-[#eee5f7] bg-[radial-gradient(circle_at_top_left,_rgba(164,133,255,0.16),_transparent_34%),radial-gradient(circle_at_bottom_right,_rgba(244,170,214,0.18),_transparent_24%),linear-gradient(135deg,_#ffffff_0%,_#fcf9ff_52%,_#f8f3fb_100%)] p-6 shadow-[0_18px_50px_rgba(95,71,147,0.08)] md:p-8 xl:p-10">
-          <div className="mb-8">
-            <div className="inline-flex rounded-full border border-[#eadff8] bg-white/85 px-4 py-2 text-[12px] font-semibold text-[#7a5cf6] shadow-sm">
-              DAYPIC ARTIST
+          <div className="mb-8 flex items-start justify-between gap-4">
+            <div>
+              <div className="inline-flex rounded-full border border-[#eadff8] bg-white/85 px-4 py-2 text-[12px] font-semibold text-[#7a5cf6] shadow-sm">
+                DAYPIC ARTIST
+              </div>
+
+              <h1 className="mt-5 text-[34px] font-black leading-[1.16] tracking-[-0.06em] text-[#2a2444] md:text-[52px]">
+                작가 정보 등록
+              </h1>
+
+              <p className="mt-5 max-w-[760px] text-[16px] leading-8 text-[#6f6888]">
+                데이픽에 노출될 작가님의 기본 정보를 입력해줘.
+                <br />
+                입력한 정보는 작가 연결과 검색 노출에 활용돼.
+              </p>
             </div>
 
-            <h1 className="mt-5 text-[34px] font-black leading-[1.16] tracking-[-0.06em] text-[#2a2444] md:text-[52px]">
-              작가 정보 등록
-            </h1>
-
-            <p className="mt-5 max-w-[760px] text-[16px] leading-8 text-[#6f6888]">
-              데이픽에 노출될 작가님의 기본 정보를 입력해 주세요.
-              <br />
-              입력하신 정보는 작가 연결과 검색 노출에 활용됩니다.
-            </p>
+            <Link
+              href={ADMIN_INQUIRY_URL}
+              target="_blank"
+              rel="noreferrer"
+              className={`${headerButtonClass} hidden md:inline-flex`}
+            >
+              관리자 문의
+            </Link>
           </div>
 
           <form
@@ -305,7 +401,7 @@ export default function ArtistRegisterPage() {
                   type="text"
                   value={form.companyName}
                   onChange={(e) => updateField("companyName", e.target.value)}
-                  placeholder="업체명 또는 활동명을 입력해 주세요."
+                  placeholder="업체명 또는 활동명을 입력해줘."
                   className="h-14 w-full rounded-2xl border border-[#e7e1f5] bg-[#faf9fd] px-5 text-base text-[#32285d] outline-none transition focus:border-violet-500"
                 />
               </div>
@@ -318,7 +414,7 @@ export default function ArtistRegisterPage() {
                   type="email"
                   value={form.email}
                   onChange={(e) => updateField("email", e.target.value)}
-                  placeholder="연락 가능한 이메일을 입력해 주세요."
+                  placeholder="연락 가능한 이메일을 입력해줘."
                   className="h-14 w-full rounded-2xl border border-[#e7e1f5] bg-[#faf9fd] px-5 text-base text-[#32285d] outline-none transition focus:border-violet-500"
                 />
               </div>
@@ -341,8 +437,7 @@ export default function ArtistRegisterPage() {
                   촬영서비스 <span className="text-violet-500">*</span>
                 </label>
                 <MultiSelectDropdown
-                  label="촬영서비스"
-                  placeholder="촬영서비스를 선택해 주세요."
+                  placeholder="촬영서비스를 선택해줘."
                   options={SERVICE_OPTIONS}
                   value={form.services}
                   onChange={(next) => updateField("services", next)}
@@ -354,8 +449,7 @@ export default function ArtistRegisterPage() {
                   촬영지역 <span className="text-violet-500">*</span>
                 </label>
                 <MultiSelectDropdown
-                  label="촬영지역"
-                  placeholder="촬영지역을 선택해 주세요."
+                  placeholder="촬영지역을 선택해줘."
                   options={REGION_OPTIONS}
                   value={form.regions}
                   onChange={(next) => updateField("regions", next)}
@@ -367,20 +461,19 @@ export default function ArtistRegisterPage() {
                   촬영비용 <span className="text-violet-500">*</span>
                 </label>
                 <SingleSelectDropdown
-                  placeholder="촬영비용을 선택해 주세요."
+                  placeholder="촬영비용을 선택해줘."
                   options={PRICE_OPTIONS}
                   value={form.price}
                   onChange={(next) => updateField("price", next)}
                 />
               </div>
 
-              <div className="md:col-span-1">
+              <div>
                 <label className="mb-3 block text-[17px] font-bold text-[#4a3c7d]">
                   성향키워드 <span className="text-violet-500">*</span>
                 </label>
                 <MultiSelectDropdown
-                  label="성향키워드"
-                  placeholder="성향키워드를 선택해 주세요."
+                  placeholder="성향키워드를 선택해줘."
                   options={STYLE_OPTIONS}
                   value={form.styleKeywords}
                   onChange={(next) => updateField("styleKeywords", next)}
@@ -395,7 +488,7 @@ export default function ArtistRegisterPage() {
                   type="url"
                   value={form.portfolioUrl}
                   onChange={(e) => updateField("portfolioUrl", e.target.value)}
-                  placeholder="포트폴리오 URL을 입력해 주세요."
+                  placeholder="포트폴리오 URL을 입력해줘."
                   className="h-14 w-full rounded-2xl border border-[#e7e1f5] bg-[#faf9fd] px-5 text-base text-[#32285d] outline-none transition focus:border-violet-500"
                 />
               </div>
@@ -408,7 +501,7 @@ export default function ArtistRegisterPage() {
                   type="url"
                   value={form.openchatUrl}
                   onChange={(e) => updateField("openchatUrl", e.target.value)}
-                  placeholder="카카오 오픈채팅 링크를 입력해 주세요."
+                  placeholder="카카오 오픈채팅 링크를 입력해줘."
                   className="h-14 w-full rounded-2xl border border-[#e7e1f5] bg-[#faf9fd] px-5 text-base text-[#32285d] outline-none transition focus:border-violet-500"
                 />
               </div>
@@ -429,10 +522,14 @@ export default function ArtistRegisterPage() {
             <div className="mt-10 space-y-3">
               <button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={isSubmitting || isMeLoading}
                 className="flex h-14 w-full items-center justify-center rounded-2xl bg-gradient-to-r from-[#5b45f4] to-[#6b53ff] text-lg font-bold text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {isSubmitting ? "등록 중입니다..." : "등록하기"}
+                {isMeLoading
+                  ? "로그인 상태 확인 중..."
+                  : isSubmitting
+                  ? "등록 중이야..."
+                  : "등록하기"}
               </button>
 
               <Link

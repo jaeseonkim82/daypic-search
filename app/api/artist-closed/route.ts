@@ -10,6 +10,7 @@ const AIRTABLE_TOKEN = process.env.AIRTABLE_TOKEN;
 const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
 const CLOSED_DATES_TABLE =
   process.env.AIRTABLE_CLOSED_DATES_TABLE || "closed_dates";
+const ARTISTS_TABLE = process.env.AIRTABLE_ARTISTS_TABLE || "artists";
 
 function formatDateToYMD(value: string): string {
   if (!value) return "";
@@ -58,17 +59,62 @@ function getTableUrl() {
   )}`;
 }
 
-async function getSessionInfo(request: NextRequest) {
-  const token = await getToken({
-    req: request,
-    secret: process.env.NEXTAUTH_SECRET,
+function getArtistsTableUrl() {
+  if (!AIRTABLE_BASE_ID) {
+    throw new Error("AIRTABLE_BASE_ID가 설정되지 않았어.");
+  }
+
+  return `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${encodeURIComponent(
+    ARTISTS_TABLE
+  )}`;
+}
+
+async function findArtistByKakaoId(kakaoId: string): Promise<AirtableRecord | null> {
+  const formula = encodeURIComponent(`{kakao_id}="${kakaoId}"`);
+  const url = `${getArtistsTableUrl()}?filterByFormula=${formula}&maxRecords=1`;
+
+  const response = await fetch(url, {
+    method: "GET",
+    headers: getHeaders(),
+    cache: "no-store",
   });
 
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`작가 조회 실패: ${response.status} ${text}`);
+  }
+
+  const data = await response.json();
+  return data.records?.[0] || null;
+}
+
+async function getSessionInfo(request: NextRequest) {
+  const token = (await getToken({
+    req: request,
+    secret: process.env.NEXTAUTH_SECRET,
+  })) as
+    | {
+        userId?: string;
+        artistId?: string;
+        kakaoId?: string;
+        email?: string;
+        name?: string;
+      }
+    | null;
+
   const userId = typeof token?.userId === "string" ? token.userId : "";
-  const artistId = typeof token?.artistId === "string" ? token.artistId : "";
+  const tokenArtistId = typeof token?.artistId === "string" ? token.artistId : "";
+  const kakaoId = typeof token?.kakaoId === "string" ? token.kakaoId : "";
   const email = typeof token?.email === "string" ? token.email : "";
 
-  return { token, userId, artistId, email };
+  let artistId = tokenArtistId;
+
+  if (!artistId && kakaoId) {
+    const artistRecord = await findArtistByKakaoId(kakaoId);
+    artistId = artistRecord?.id ? String(artistRecord.id) : "";
+  }
+
+  return { token, userId, artistId, kakaoId, email };
 }
 
 async function fetchClosedDatesByArtistId(
@@ -113,9 +159,9 @@ async function fetchClosedDatesByArtistId(
 
 export async function GET(request: NextRequest) {
   try {
-    const { userId, artistId } = await getSessionInfo(request);
+    const { artistId } = await getSessionInfo(request);
 
-    if (!userId || !artistId) {
+    if (!artistId) {
       return NextResponse.json(
         { ok: false, message: "로그인된 작가 정보가 필요해." },
         { status: 401 }
@@ -159,7 +205,7 @@ export async function POST(request: NextRequest) {
   try {
     const { userId, artistId, email } = await getSessionInfo(request);
 
-    if (!userId || !artistId) {
+    if (!artistId) {
       return NextResponse.json(
         { ok: false, message: "로그인된 작가 정보가 필요해." },
         { status: 401 }
@@ -179,19 +225,25 @@ export async function POST(request: NextRequest) {
     const dateKey = makeDateKey(artistId, date);
 
     const formula = encodeURIComponent(
-  `AND({artist_id}="${artistId}", {날짜}="${date}")`
-);
+      `AND({artist_id}="${artistId}", {날짜}="${date}")`
+    );
 
-const url = `${getTableUrl()}?filterByFormula=${formula}&maxRecords=1`;
+    const url = `${getTableUrl()}?filterByFormula=${formula}&maxRecords=1`;
 
-const res = await fetch(url, {
-  method: "GET",
-  headers: getHeaders(),
-});
+    const res = await fetch(url, {
+      method: "GET",
+      headers: getHeaders(),
+      cache: "no-store",
+    });
 
-const existingData = await res.json();
-const alreadyExists = existingData.records?.length > 0;
-   
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`중복 조회 실패: ${res.status} ${text}`);
+    }
+
+    const existingData = await res.json();
+    const alreadyExists = existingData.records?.length > 0;
+
     if (alreadyExists) {
       return NextResponse.json({
         ok: true,
@@ -201,17 +253,23 @@ const alreadyExists = existingData.records?.length > 0;
       });
     }
 
+    const fields: Record<string, any> = {
+      날짜: date,
+      artist_id: artistId,
+    };
+
+    if (userId) {
+      fields.owner_user_id = userId;
+    }
+
+    if (email) {
+      fields["작가이메일"] = email;
+    }
+
     const response = await fetch(getTableUrl(), {
       method: "POST",
       headers: getHeaders(),
-      body: JSON.stringify({
-        fields: {
-          날짜: date,
-          artist_id: artistId,
-          owner_user_id: userId,
-          ...(email ? { 작가이메일: email } : {}),
-        },
-      }),
+      body: JSON.stringify({ fields }),
     });
 
     if (!response.ok) {
@@ -229,7 +287,8 @@ const alreadyExists = existingData.records?.length > 0;
         id: data.id,
         date,
         artist_id: artistId,
-        owner_user_id: userId,
+        owner_user_id: userId || "",
+        date_key: String(data.fields?.date_key || dateKey || ""),
       },
     });
   } catch (error) {
@@ -252,7 +311,7 @@ export async function DELETE(request: NextRequest) {
   try {
     const { userId, artistId } = await getSessionInfo(request);
 
-    if (!userId || !artistId) {
+    if (!artistId) {
       return NextResponse.json(
         { ok: false, message: "로그인된 작가 정보가 필요해." },
         { status: 401 }
@@ -269,17 +328,22 @@ export async function DELETE(request: NextRequest) {
     }
 
     const existing = await fetchClosedDatesByArtistId(artistId);
-const matched = existing.find((record) => {
-  const recordDate = formatDateToYMD(String(record.fields["날짜"] || ""));
-  const recordArtistId = String(record.fields["artist_id"] || "");
-  const recordOwnerUserId = String(record.fields["owner_user_id"] || "");
 
-  return (
-    recordDate === date &&
-    recordArtistId === artistId &&
-    recordOwnerUserId === userId
-  );
-});
+    const matched = existing.find((record) => {
+      const recordDate = formatDateToYMD(String(record.fields["날짜"] || ""));
+      const recordArtistId = String(record.fields["artist_id"] || "");
+      const recordOwnerUserId = String(record.fields["owner_user_id"] || "");
+
+      if (recordDate !== date || recordArtistId !== artistId) {
+        return false;
+      }
+
+      if (userId && recordOwnerUserId) {
+        return recordOwnerUserId === userId;
+      }
+
+      return true;
+    });
 
     if (!matched) {
       return NextResponse.json(

@@ -15,7 +15,7 @@ type ArtistDetail = {
   rating?: number | null;
   keywords?: string[];
   성향키워드?: string[] | string;
-  openchat_url?: string;
+  open_chat_url?: string;
   portfolio_images?: string[] | string;
   artist_type?: string;
   video_link_1?: string;
@@ -24,6 +24,10 @@ type ArtistDetail = {
   video_link_4?: string;
   video_links?: string[];
   video_thumbnail?: string;
+  video_thumb_1?: string;
+  video_thumb_2?: string;
+  video_thumb_3?: string;
+  video_thumb_4?: string;
 };
 
 type SavedArtist = {
@@ -152,7 +156,14 @@ function buildSavedArtist(artist: ArtistDetail): SavedArtist {
     region: normalizeArray(artist.region),
     price: artist.price,
     portfolio: artist.portfolio,
-    image: artist.image || artist.video_thumbnail || FALLBACK_IMAGE,
+    image:
+      artist.image ||
+      artist.video_thumb_1 ||
+      artist.video_thumb_2 ||
+      artist.video_thumb_3 ||
+      artist.video_thumb_4 ||
+      artist.video_thumbnail ||
+      FALLBACK_IMAGE,
   };
 }
 
@@ -183,30 +194,35 @@ export default function ArtistDetailPage() {
           cache: "no-store",
         });
 
-        if (!response.ok) {
-          throw new Error(`작가 상세 조회 실패: ${response.status}`);
-        }
-
         const data = await response.json();
 
+        if (!response.ok) {
+          throw new Error(data?.error || `작가 상세 조회 실패: ${response.status}`);
+        }
+
         if (!mounted) return;
+
+        const normalizedKeywords =
+          normalizeArray(data.keywords).length > 0
+            ? normalizeArray(data.keywords)
+            : normalizeArray(data["성향키워드"]);
 
         setArtist({
           ...data,
           id: String(data.id ?? artistId),
           service: normalizeArray(data.service),
           region: normalizeArray(data.region),
-          keywords:
-            normalizeArray(data.keywords).length > 0
-              ? normalizeArray(data.keywords)
-              : normalizeArray(data["성향키워드"]),
-          성향키워드:
-            normalizeArray(data.keywords).length > 0
-              ? normalizeArray(data.keywords)
-              : normalizeArray(data["성향키워드"]),
+          keywords: normalizedKeywords,
+          성향키워드: normalizedKeywords,
           portfolio_images: data.portfolio_images || "",
           video_links: getVideoLinks(data),
           video_thumbnail: data.video_thumbnail || "",
+          video_thumb_1: data.video_thumb_1 || "",
+          video_thumb_2: data.video_thumb_2 || "",
+          video_thumb_3: data.video_thumb_3 || "",
+          video_thumb_4: data.video_thumb_4 || "",
+          open_chat_url: data.open_chat_url || data.openchat_url || "",
+          portfolio: typeof data.portfolio === "string" ? data.portfolio : "",
         });
       } catch (error) {
         console.error(error);
@@ -247,6 +263,18 @@ export default function ArtistDetailPage() {
 
   const videoArtist = useMemo(() => isVideoArtist(artist), [artist]);
   const videoLinks = useMemo(() => getVideoLinks(artist), [artist]);
+
+  const videoThumbs = useMemo(() => {
+    if (!artist) return [];
+
+    return [
+      artist.video_thumb_1 || "",
+      artist.video_thumb_2 || "",
+      artist.video_thumb_3 || "",
+      artist.video_thumb_4 || "",
+    ];
+  }, [artist]);
+
   const portfolioImages = useMemo(() => {
     if (!artist?.portfolio_images) return [];
     return normalizeArray(artist.portfolio_images);
@@ -254,7 +282,19 @@ export default function ArtistDetailPage() {
 
   const heroImage = useMemo(() => {
     if (!artist) return "";
-    if (videoArtist) return artist.video_thumbnail || artist.image || "";
+
+    if (videoArtist) {
+      return (
+        artist.video_thumb_1 ||
+        artist.video_thumb_2 ||
+        artist.video_thumb_3 ||
+        artist.video_thumb_4 ||
+        artist.video_thumbnail ||
+        artist.image ||
+        ""
+      );
+    }
+
     return artist.image || "";
   }, [artist, videoArtist]);
 
@@ -323,7 +363,7 @@ export default function ArtistDetailPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-[#f8f5fb] flex items-center justify-center text-[#272246]">
+      <main className="flex min-h-screen items-center justify-center bg-[#f8f5fb] text-[#272246]">
         로딩 중...
       </main>
     );
@@ -331,7 +371,7 @@ export default function ArtistDetailPage() {
 
   if (!artist) {
     return (
-      <main className="min-h-screen bg-[#f8f5fb] flex flex-col items-center justify-center text-[#272246]">
+      <main className="flex min-h-screen flex-col items-center justify-center bg-[#f8f5fb] text-[#272246]">
         <p>작가 정보를 불러오지 못했어.</p>
         <button
           type="button"
@@ -366,8 +406,7 @@ export default function ArtistDetailPage() {
         </div>
 
         <div className="grid gap-6 lg:grid-cols-[250px_minmax(0,1fr)]">
-          {/* 왼쪽 사이드 */}
-          <aside className="hidden lg:block lg:sticky lg:top-[104px] lg:self-start">
+          <aside className="hidden lg:sticky lg:top-[104px] lg:block lg:self-start">
             <div className="space-y-4">
               <div className="rounded-[24px] border border-[#e8e0f3] bg-[#f7f3fb] p-4 shadow-[0_10px_26px_rgba(80,60,120,0.05)]">
                 <div className="mb-3 flex items-center justify-between rounded-[16px] bg-[#f1e9ff] px-3 py-2">
@@ -470,7 +509,6 @@ export default function ArtistDetailPage() {
             </div>
           </aside>
 
-          {/* 메인 콘텐츠 */}
           <div>
             <section className="overflow-hidden rounded-[32px] border border-[#ece4f4] bg-white shadow-[0_18px_44px_rgba(80,60,120,0.08)]">
               <div className="grid gap-0 lg:grid-cols-[1.05fr_0.95fr]">
@@ -507,21 +545,21 @@ export default function ArtistDetailPage() {
                     DAYPIC ARTIST
                   </p>
 
-                  <div className="mt-4 flex items-center gap-3 flex-wrap">
+                  <div className="mt-4 flex flex-wrap items-center gap-3">
                     <h1 className="text-[34px] font-black tracking-[-0.05em] text-[#272246]">
                       {artist.name || "업체명 준비중"}
                     </h1>
 
-                    {artist.openchat_url ? (
+                    {artist.open_chat_url && artist.open_chat_url.trim() !== "" && (
                       <a
-                        href={normalizeExternalUrl(artist.openchat_url)}
+                        href={normalizeExternalUrl(artist.open_chat_url)}
                         target="_blank"
                         rel="noreferrer"
                         className="inline-flex h-11 items-center justify-center rounded-full bg-[#6d46f6] px-5 text-[14px] font-semibold text-white transition hover:opacity-90"
                       >
                         문의하기
                       </a>
-                    ) : null}
+                    )}
                   </div>
 
                   <div className="mt-6 grid gap-3">
@@ -569,13 +607,13 @@ export default function ArtistDetailPage() {
                   </div>
 
                   <div className="mt-8 grid gap-3 sm:grid-cols-2">
-                  <button
-  type="button"
-  onClick={() => router.push("/search")}
-  className="inline-flex h-12 items-center justify-center rounded-[16px] bg-[#f3effb] text-[14px] font-semibold text-[#5b47c8]"
->
-  다른 작가 더 보기
-</button>
+                    <button
+                      type="button"
+                      onClick={() => router.push("/search")}
+                      className="inline-flex h-12 items-center justify-center rounded-[16px] bg-[#f3effb] text-[14px] font-semibold text-[#5b47c8]"
+                    >
+                      다른 작가 더 보기
+                    </button>
 
                     {videoArtist ? (
                       videoLinks.length > 0 ? (
@@ -601,7 +639,7 @@ export default function ArtistDetailPage() {
                           영상 준비중
                         </button>
                       )
-                    ) : artist.portfolio ? (
+                    ) : artist.portfolio && artist.portfolio.trim() !== "" ? (
                       <a
                         href={normalizeExternalUrl(artist.portfolio)}
                         target="_blank"
@@ -650,7 +688,13 @@ export default function ArtistDetailPage() {
                           className="group relative overflow-hidden rounded-[22px] border border-[#ebe4f4] bg-white transition-all duration-200 hover:shadow-lg"
                         >
                           <div className="relative aspect-[16/10] bg-[#f5f3fb]">
-                            {artist.video_thumbnail ? (
+                            {videoThumbs[index] ? (
+                              <img
+                                src={videoThumbs[index]}
+                                alt={`샘플 영상 ${index + 1}`}
+                                className="h-full w-full object-cover"
+                              />
+                            ) : artist.video_thumbnail ? (
                               <img
                                 src={artist.video_thumbnail}
                                 alt={`샘플 영상 ${index + 1}`}
@@ -754,11 +798,10 @@ export default function ArtistDetailPage() {
         </div>
       </div>
 
-      {/* 모바일 하단 고정 문의하기 */}
-      {artist.openchat_url ? (
+      {artist.open_chat_url && artist.open_chat_url.trim() !== "" && (
         <div className="fixed inset-x-0 bottom-0 z-50 border-t border-[#e9dff7] bg-white/95 px-4 py-3 shadow-[0_-8px_30px_rgba(60,50,100,0.10)] backdrop-blur md:hidden">
           <a
-            href={normalizeExternalUrl(artist.openchat_url)}
+            href={normalizeExternalUrl(artist.open_chat_url)}
             target="_blank"
             rel="noreferrer"
             className="flex h-12 w-full items-center justify-center rounded-[16px] bg-[#6d46f6] text-[15px] font-bold text-white"
@@ -766,9 +809,8 @@ export default function ArtistDetailPage() {
             카카오톡으로 문의하기
           </a>
         </div>
-      ) : null}
+      )}
 
-      {/* 포트폴리오 라이트박스 */}
       {lightboxOpen && !videoArtist && portfolioImages.length > 0 ? (
         <div className="fixed inset-0 z-[100] bg-black/88 backdrop-blur-sm">
           <button
@@ -780,28 +822,6 @@ export default function ArtistDetailPage() {
             ✕
           </button>
 
-          {portfolioImages.length > 1 && (
-            <>
-              <button
-                type="button"
-                onClick={goPrevImage}
-                className="absolute left-3 top-1/2 z-[120] flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-[28px] text-white transition hover:bg-white/20 md:left-6"
-                aria-label="이전 이미지"
-              >
-                ‹
-              </button>
-
-              <button
-                type="button"
-                onClick={goNextImage}
-                className="absolute right-3 top-1/2 z-[120] flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-[28px] text-white transition hover:bg-white/20 md:right-6"
-                aria-label="다음 이미지"
-              >
-                ›
-              </button>
-            </>
-          )}
-
           <div
             className="flex h-full w-full items-center justify-center px-4 py-14"
             onClick={closeLightbox}
@@ -810,6 +830,28 @@ export default function ArtistDetailPage() {
               className="relative w-full max-w-[1200px] overflow-hidden rounded-[20px]"
               onClick={(e) => e.stopPropagation()}
             >
+              {portfolioImages.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={goPrevImage}
+                    className="absolute left-3 top-1/2 z-[150] flex h-16 w-16 -translate-y-1/2 items-center justify-center rounded-full bg-black/55 text-[38px] font-light text-white shadow-[0_12px_30px_rgba(0,0,0,0.4)] transition hover:scale-110 hover:bg-black/75 md:left-4 md:h-20 md:w-20 md:text-[44px]"
+                    aria-label="이전 이미지"
+                  >
+                    ‹
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={goNextImage}
+                    className="absolute right-3 top-1/2 z-[150] flex h-16 w-16 -translate-y-1/2 items-center justify-center rounded-full bg-black/55 text-[38px] font-light text-white shadow-[0_12px_30px_rgba(0,0,0,0.4)] transition hover:scale-110 hover:bg-black/75 md:right-4 md:h-20 md:w-20 md:text-[44px]"
+                    aria-label="다음 이미지"
+                  >
+                    ›
+                  </button>
+                </>
+              )}
+
               <div
                 className="flex transition-transform duration-500 ease-out"
                 style={{

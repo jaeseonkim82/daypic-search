@@ -14,6 +14,8 @@ type RegisterArtistRequest = {
   styleKeywords?: string[];
   portfolioUrl?: string;
   openchatUrl?: string;
+  userId?: string;
+  kakaoId?: string;
 };
 
 function isValidUrl(value: string) {
@@ -22,9 +24,12 @@ function isValidUrl(value: string) {
     return true;
   } catch {
     return false;
+    
   }
 }
-
+function makeArtistId() {
+  return `artist_${Math.random().toString(36).slice(2, 14)}`;
+}
 export async function POST(request: NextRequest) {
   try {
     if (!AIRTABLE_TOKEN || !AIRTABLE_BASE_ID) {
@@ -47,6 +52,8 @@ export async function POST(request: NextRequest) {
       : [];
     const portfolioUrl = body.portfolioUrl?.trim() || "";
     const openchatUrl = body.openchatUrl?.trim() || "";
+    const userId = body.userId?.trim() || "";
+const kakaoId = body.kakaoId?.trim() || "";
 
     if (!companyName) {
       return NextResponse.json(
@@ -125,17 +132,19 @@ export async function POST(request: NextRequest) {
         records: [
           {
             fields: {
-              업체명: companyName,
-              이메일: email,
-              연락처: phone,
-              촬영서비스: services,
-              촬영지역: regions,
-              촬영비용: price,
-              성향키워드: styleKeywords,
-              포트폴리오: portfolioUrl,
-              openchat_url: openchatUrl,
-              검색노출: true,
-            },
+  업체명: companyName,
+  이메일: email,
+  연락처: phone,
+  촬영서비스: services,
+  촬영지역: regions,
+  촬영비용: price,
+  성향키워드: styleKeywords,
+  포트폴리오: portfolioUrl,
+  openchat_url: openchatUrl,
+  검색노출: true,
+  user_id: userId || undefined,
+  kakao_id: kakaoId || undefined,
+},
           },
         ],
       }),

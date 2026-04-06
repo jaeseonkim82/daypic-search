@@ -5,11 +5,13 @@ const ADMIN_INQUIRY_URL = "https://pf.kakao.com/_YOUR_CHANNEL_LINK";
 const headerButtonClass =
   "inline-flex h-[44px] min-w-[116px] items-center justify-center rounded-full border border-[#dccff2] bg-white px-5 text-[14px] font-semibold text-[#4d426b] transition-colors duration-200 hover:border-[#2c2448] hover:bg-[#2c2448] hover:text-white active:border-[#2c2448] active:bg-[#2c2448] active:text-white";
 
-  const primaryButtonClass =
-   "inline-flex h-[54px] min-w-[176px] items-center justify-center rounded-full border border-[#7a5cf6] bg-white px-6 text-[15px] font-semibold text-[#7a5cf6] transition-all duration-200 hover:bg-[#2c2448] hover:text-white hover:border-[#2c2448] hover:shadow-[0_10px_24px_rgba(44,36,72,0.22)] active:bg-[#2c2448] active:text-white";
-   const secondaryButtonClass =
+const primaryButtonClass =
   "inline-flex h-[54px] min-w-[176px] items-center justify-center rounded-full border border-[#7a5cf6] bg-white px-6 text-[15px] font-semibold text-[#7a5cf6] transition-all duration-200 hover:bg-[#2c2448] hover:text-white hover:border-[#2c2448] hover:shadow-[0_10px_24px_rgba(44,36,72,0.22)] active:bg-[#2c2448] active:text-white";
-  const cardButtonClass =
+
+const secondaryButtonClass =
+  "inline-flex h-[54px] min-w-[176px] items-center justify-center rounded-full border border-[#7a5cf6] bg-white px-6 text-[15px] font-semibold text-[#7a5cf6] transition-all duration-200 hover:bg-[#2c2448] hover:text-white hover:border-[#2c2448] hover:shadow-[0_10px_24px_rgba(44,36,72,0.22)] active:bg-[#2c2448] active:text-white";
+
+const cardButtonClass =
   "mt-6 inline-flex h-[48px] w-full items-center justify-center rounded-[16px] border border-[#e3d8f4] bg-[#f7f2ff] text-center text-[14px] font-semibold text-[#5d47cb] transition hover:bg-[#6d46f6] hover:text-white";
 
 const faqItems = [
@@ -38,8 +40,6 @@ const faqItems = [
 export default function HomePage() {
   return (
     <main className="min-h-screen bg-[#faf7fc] text-[#251f3c]">
-     
-
       <div className="mx-auto max-w-[1440px] px-5 pb-20 pt-8 md:px-8 md:pt-10">
         <section className="relative overflow-hidden rounded-[38px] border border-[#eee5f7] bg-[radial-gradient(circle_at_top_left,_rgba(164,133,255,0.16),_transparent_34%),radial-gradient(circle_at_bottom_right,_rgba(244,170,214,0.18),_transparent_24%),linear-gradient(135deg,_#ffffff_0%,_#fcf9ff_52%,_#f8f3fb_100%)] p-6 shadow-[0_18px_50px_rgba(95,71,147,0.08)] md:p-8 xl:p-10">
           <div className="grid gap-8 xl:grid-cols-[1.08fr_0.92fr]">
@@ -197,193 +197,185 @@ export default function HomePage() {
           </div>
         </section>
 
-       <section className="mt-14 space-y-10">
-  {/* 촬영 서비스 소개 섹션 */}
-<section className="mt-20">
-  <div className="rounded-[34px] border border-[#e8def4] bg-white px-8 py-12 shadow-[0_10px_26px_rgba(60,50,100,0.05)] md:px-12 md:py-14">
+        <section className="mt-14 space-y-10">
+          <section className="mt-20">
+            <div className="rounded-[34px] border border-[#e8def4] bg-white px-8 py-12 shadow-[0_10px_26px_rgba(60,50,100,0.05)] md:px-12 md:py-14">
+              <div className="grid gap-12 md:grid-cols-2 md:items-center">
+                <div>
+                  <div className="text-[17px] font-semibold text-[#9a8cff]">
+                    촬영 서비스 카테고리
+                  </div>
 
-    {/* 좌측 텍스트 */}
-    <div className="grid gap-12 md:grid-cols-2 md:items-center">
-      <div>
-        <div className="text-[17px] font-semibold text-[#9a8cff]">
-          촬영 서비스 카테고리
-        </div>
+                  <h2 className="mt-3 text-[28px] font-bold leading-[1.4] text-[#2b2340] md:text-[34px]">
+                    본식스냅부터 스튜디오촬영까지
+                    <br />
+                    다양한 촬영 작가님을 찾으실 수 있습니다
+                  </h2>
 
-        <h2 className="mt-3 text-[28px] font-bold leading-[1.4] text-[#2b2340] md:text-[34px]">
-          
-        
-          다양한 촬영 작가님을 찾 수 있습니다
-        </h2>
+                  <p className="mt-4 text-[15px] leading-[1.7] text-[#6b6585]">
+                    데이픽은 날짜 중심 검색을 기반으로, 본식스냅, 영상촬영,
+                    아이폰스냅, 돌스냅, 야외촬영, 스튜디오촬영 등 다양한 촬영
+                    서비스를 함께 탐색하실 수 있도록 준비하고 있습니다.
+                  </p>
+                </div>
 
-        <p className="mt-4 text-[15px] leading-[1.7] text-[#6b6585]">
-          데이픽은 날짜 중심 검색을 기반으로, 본식스냅, 영상촬영, 아이폰스냅,
-          돌스냅, 야외촬영, 스튜디오촬영 등 다양한 촬영 서비스를 함께 탐색하실 수 있도록 준비하고 있습니다.
-        </p>
-      </div>
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                  {[
+                    { icon: "💐", title: "본식스냅", desc: "예식 당일의 순간을 담는 촬영" },
+                    { icon: "📸", title: "서브스냅", desc: "메인 촬영을 보완하는 추가 촬영" },
+                    { icon: "🎥", title: "영상촬영", desc: "영상으로 기록하는 웨딩 스토리" },
+                    { icon: "📱", title: "아이폰스냅", desc: "더 자연스럽고 가벼운 촬영" },
+                    { icon: "🎂", title: "돌스냅", desc: "첫 생일의 소중한 순간 기록" },
+                    { icon: "🐶", title: "애견스냅", desc: "반려견과 함께하는 특별한 촬영" },
+                    { icon: "🌿", title: "야외촬영", desc: "자연 속에서 담는 감성 촬영" },
+                    { icon: "🏛️", title: "스튜디오촬영", desc: "컨셉에 맞춘 연출 촬영" },
+                  ].map((item, i) => (
+                    <div
+                      key={i}
+                      className="flex flex-col items-center justify-center rounded-[20px] border border-[#eee7ff] bg-[#faf8ff] px-4 py-5 text-center transition hover:shadow-md"
+                    >
+                      <div className="mb-2 flex h-[44px] w-[44px] items-center justify-center rounded-full bg-white text-[20px] shadow">
+                        {item.icon}
+                      </div>
 
-      {/* 우측 카드 */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                      <div className="text-[14px] font-semibold text-[#3d3558]">
+                        {item.title}
+                      </div>
 
-        {[
-          { icon: "💐", title: "본식스냅", desc: "예식 당일의 순간을 담는 촬영" },
-          { icon: "📸", title: "서브스냅", desc: "메인 촬영을 보완하는 추가 촬영" },
-          { icon: "🎥", title: "영상촬영", desc: "영상으로 기록하는 웨딩 스토리" },
-          { icon: "📱", title: "아이폰스냅", desc: "더 자연스럽고 가벼운 촬영" },
-          { icon: "🎂", title: "돌스냅", desc: "첫 생일의 소중한 순간 기록" },
-          { icon: "🐶", title: "애견스냅", desc: "반려견과 함께하는 특별한 촬영" },
-          { icon: "🌿", title: "야외촬영", desc: "자연 속에서 담는 감성 촬영" },
-          { icon: "🏛️", title: "스튜디오촬영", desc: "컨셉에 맞춘 연출 촬영" },
-        ].map((item, i) => (
-          <div
-            key={i}
-            className="flex flex-col items-center justify-center rounded-[20px] border border-[#eee7ff] bg-[#faf8ff] px-4 py-5 text-center transition hover:shadow-md"
-          >
-            <div className="mb-2 flex h-[44px] w-[44px] items-center justify-center rounded-full bg-white text-[20px] shadow">
-              {item.icon}
+                      <div className="mt-1 text-[12px] leading-[1.5] text-[#8a84a3]">
+                        {item.desc}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
+          </section>
 
-            <div className="text-[14px] font-semibold text-[#3d3558]">
-              {item.title}
+          <section className="mt-20">
+            <div className="max-w-6xl mx-auto px-6">
+              <div className="text-center">
+                <p className="text-[16px] font-semibold tracking-[0.08em] text-[#8a7eb0]">
+                  DAYPIC POINT
+                </p>
+                <h2 className="mt-3 text-[30px] md:text-[38px] font-black leading-[1.3] tracking-[-0.05em] text-[#7a5cf6]">
+                  좋은 작가를 찾는 기준은
+                  <br className="hidden md:block" />
+                  생각보다 더 분명합니다
+                </h2>
+                <p className="mt-4 text-[15px] md:text-[16px] leading-8 text-[#6f6888]">
+                  취향이 맞는지, 소통이 편한지, 그리고 원하는 날짜에 실제로 가능한지.
+                  <br className="hidden md:block" />
+                  데이픽은 그 핵심 기준부터 먼저 확인하실 수 있도록 설계했습니다.
+                </p>
+              </div>
+
+              <div className="mt-12 grid gap-6 md:grid-cols-3">
+                <div className="rounded-[28px] border border-[#e8def4] bg-white p-6 shadow-[0_10px_24px_rgba(78,58,130,0.05)]">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-[16px] bg-[#f5efff] text-[22px]">
+                    💜
+                  </div>
+                  <p className="mt-5 text-[13px] font-semibold tracking-[0.08em] text-[#8a7eb0]">
+                    취향
+                  </p>
+                  <h3 className="mt-2 text-[24px] font-black tracking-[-0.04em] text-[#2c2646]">
+                    내 취향에 맞는 작가
+                  </h3>
+                  <p className="mt-3 text-[15px] leading-8 text-[#6f6888]">
+                    사진은 잘 찍는 것만으로 결정되지 않습니다. 내가 원하는 분위기와 결이 맞는지부터 확인하실 수 있어야 합니다.
+                  </p>
+                </div>
+
+                <div className="rounded-[28px] border border-[#e8def4] bg-white p-6 shadow-[0_10px_24px_rgba(78,58,130,0.05)]">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-[16px] bg-[#fff3f7] text-[22px]">
+                    💬
+                  </div>
+                  <p className="mt-5 text-[13px] font-semibold tracking-[0.08em] text-[#8a7eb0]">
+                    소통
+                  </p>
+                  <h3 className="mt-2 text-[24px] font-black tracking-[-0.04em] text-[#2c2646]">
+                    준비 과정이 편한 작가
+                  </h3>
+                  <p className="mt-3 text-[15px] leading-8 text-[#6f6888]">
+                    문의 후 답변이 늦어질수록 준비 과정은 불안해질 수 있습니다. 빠르게 연결되는 흐름이 중요합니다.
+                  </p>
+                </div>
+
+                <div className="rounded-[28px] border border-[#e8def4] bg-white p-6 shadow-[0_10px_24px_rgba(78,58,130,0.05)]">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-[16px] bg-[#eef5ff] text-[22px]">
+                    📅
+                  </div>
+                  <p className="mt-5 text-[13px] font-semibold tracking-[0.08em] text-[#8a7eb0]">
+                    일정
+                  </p>
+                  <h3 className="mt-2 text-[24px] font-black tracking-[-0.04em] text-[#2c2646]">
+                    원하는 날짜에 가능한 작가
+                  </h3>
+                  <p className="mt-3 text-[15px] leading-8 text-[#6f6888]">
+                    마음에 드는 작가를 찾았더라도 날짜가 맞지 않으면 다시 시작해야 합니다. 데이픽은 그 비효율을 줄입니다.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-10 rounded-[30px] border border-[#e8def4] bg-[#faf7ff] p-6 md:p-8">
+                <div className="grid gap-6 lg:grid-cols-[1.1fr_1.9fr] lg:items-center">
+                  <div>
+                    <p className="text-[13px] font-semibold tracking-[0.08em] text-[#8a7eb0]">
+                      이용 흐름
+                    </p>
+                    <h3 className="mt-2 text-[28px] font-black tracking-[-0.04em] text-[#2c2646]">
+                      처음 이용하셔도 어렵지 않게
+                    </h3>
+                    <p className="mt-3 text-[15px] leading-7 text-[#6f6888]">
+                      날짜와 조건을 먼저 정하고, 가능한 작가를 확인한 뒤 바로 문의까지 이어지는 흐름으로 구성했습니다.
+                    </p>
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <div className="rounded-[22px] border border-[#ece4f7] bg-white px-5 py-5 shadow-[0_6px_16px_rgba(60,50,100,0.04)] transition hover:shadow-md">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-[#f3f0ff] text-[20px]">
+                        📅
+                      </div>
+                      <p className="mt-4 text-[12px] font-semibold text-[#8a7eb0]">01</p>
+                      <p className="mt-2 text-[20px] font-black tracking-[-0.03em] text-[#2c2646]">
+                        날짜와 조건 입력
+                      </p>
+                      <p className="mt-2 text-[14px] leading-6 text-[#6f6888]">
+                        예식 날짜와 원하는 촬영 조건을 먼저 선택해주세요.
+                      </p>
+                    </div>
+
+                    <div className="rounded-[22px] border border-[#ece4f7] bg-white px-5 py-5 shadow-[0_6px_16px_rgba(60,50,100,0.04)] transition hover:shadow-md">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-[#eef5ff] text-[20px]">
+                        🔍
+                      </div>
+                      <p className="mt-4 text-[12px] font-semibold text-[#8a7eb0]">02</p>
+                      <p className="mt-2 text-[20px] font-black tracking-[-0.03em] text-[#2c2646]">
+                        가능한 작가 확인
+                      </p>
+                      <p className="mt-2 text-[14px] leading-6 text-[#6f6888]">
+                        그 날짜에 실제로 촬영 가능한 작가를 중심으로 확인하실 수 있습니다.
+                      </p>
+                    </div>
+
+                    <div className="rounded-[22px] border border-[#ece4f7] bg-white px-5 py-5 shadow-[0_6px_16px_rgba(60,50,100,0.04)] transition hover:shadow-md">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-[#fff3f7] text-[20px]">
+                        💬
+                      </div>
+                      <p className="mt-4 text-[12px] font-semibold text-[#8a7eb0]">03</p>
+                      <p className="mt-2 text-[20px] font-black tracking-[-0.03em] text-[#2c2646]">
+                        바로 문의 연결
+                      </p>
+                      <p className="mt-2 text-[14px] leading-6 text-[#6f6888]">
+                        마음에 드는 작가를 찾으셨다면 상세페이지에서 바로 문의하실 수 있습니다.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
-
-            <div className="mt-1 text-[12px] leading-[1.5] text-[#8a84a3]">
-              {item.desc}
-            </div>
-          </div>
-        ))}
-
-      </div>
-    </div>
-
-  </div>
-</section>
-
-<section className="mt-20">
-  <div className="max-w-6xl mx-auto px-6">
-    <div className="text-center">
-      <p className="text-[16px] font-semibold tracking-[0.08em] text-[#8a7eb0]">
-        DAYPIC POINT
-      </p>
-      <h2 className="mt-3 text-[30px] md:text-[38px] font-black leading-[1.3] tracking-[-0.05em] text-[#7a5cf6]">
-        좋은 작가를 찾는 기준은
-        <br className="hidden md:block" />
-        생각보다 더 분명합니다
-      </h2>
-      <p className="mt-4 text-[15px] md:text-[16px] leading-8 text-[#6f6888]">
-        취향이 맞는지, 소통이 편한지, 그리고 원하는 날짜에 실제로 가능한지.
-        <br className="hidden md:block" />
-        데이픽은 그 핵심 기준부터 먼저 확인하실 수 있도록 설계했습니다.
-      </p>
-    </div>
-
-    <div className="mt-12 grid gap-6 md:grid-cols-3">
-      <div className="rounded-[28px] border border-[#e8def4] bg-white p-6 shadow-[0_10px_24px_rgba(78,58,130,0.05)]">
-        <div className="flex h-12 w-12 items-center justify-center rounded-[16px] bg-[#f5efff] text-[22px]">
-          💜
-        </div>
-        <p className="mt-5 text-[13px] font-semibold tracking-[0.08em] text-[#8a7eb0]">
-          취향
-        </p>
-        <h3 className="mt-2 text-[24px] font-black tracking-[-0.04em] text-[#2c2646]">
-          내 취향에 맞는 작가
-        </h3>
-        <p className="mt-3 text-[15px] leading-8 text-[#6f6888]">
-          사진은 잘 찍는 것만으로 결정되지 않습니다. 내가 원하는 분위기와 결이 맞는지부터 확인하실 수 있어야 합니다.
-        </p>
-      </div>
-
-      <div className="rounded-[28px] border border-[#e8def4] bg-white p-6 shadow-[0_10px_24px_rgba(78,58,130,0.05)]">
-        <div className="flex h-12 w-12 items-center justify-center rounded-[16px] bg-[#fff3f7] text-[22px]">
-          💬
-        </div>
-        <p className="mt-5 text-[13px] font-semibold tracking-[0.08em] text-[#8a7eb0]">
-          소통
-        </p>
-        <h3 className="mt-2 text-[24px] font-black tracking-[-0.04em] text-[#2c2646]">
-          준비 과정이 편한 작가
-        </h3>
-        <p className="mt-3 text-[15px] leading-8 text-[#6f6888]">
-          문의 후 답변이 늦어질수록 준비 과정은 불안해질 수 있습니다. 빠르게 연결되는 흐름이 중요합니다.
-        </p>
-      </div>
-
-      <div className="rounded-[28px] border border-[#e8def4] bg-white p-6 shadow-[0_10px_24px_rgba(78,58,130,0.05)]">
-        <div className="flex h-12 w-12 items-center justify-center rounded-[16px] bg-[#eef5ff] text-[22px]">
-          📅
-        </div>
-        <p className="mt-5 text-[13px] font-semibold tracking-[0.08em] text-[#8a7eb0]">
-          일정
-        </p>
-        <h3 className="mt-2 text-[24px] font-black tracking-[-0.04em] text-[#2c2646]">
-          원하는 날짜에 가능한 작가
-        </h3>
-        <p className="mt-3 text-[15px] leading-8 text-[#6f6888]">
-          마음에 드는 작가를 찾았더라도 날짜가 맞지 않으면 다시 시작해야 합니다. 데이픽은 그 비효율을 줄입니다.
-        </p>
-      </div>
-    </div>
-
-    <div className="mt-10 rounded-[30px] border border-[#e8def4] bg-[#faf7ff] p-6 md:p-8">
-  <div className="grid gap-6 lg:grid-cols-[1.1fr_1.9fr] lg:items-center">
-    <div>
-      <p className="text-[13px] font-semibold tracking-[0.08em] text-[#8a7eb0]">
-        이용 흐름
-      </p>
-      <h3 className="mt-2 text-[28px] font-black tracking-[-0.04em] text-[#2c2646]">
-        처음 이용하셔도 어렵지 않게
-      </h3>
-      <p className="mt-3 text-[15px] leading-7 text-[#6f6888]">
-        날짜와 조건을 먼저 정하고, 가능한 작가를 확인한 뒤 바로 문의까지 이어지는 흐름으로 구성했습니다.
-      </p>
-    </div>
-
-    <div className="grid gap-4 md:grid-cols-3">
-      <div className="rounded-[22px] border border-[#ece4f7] bg-white px-5 py-5 shadow-[0_6px_16px_rgba(60,50,100,0.04)] transition hover:shadow-md">
-        <div className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-[#f3f0ff] text-[20px]">
-          📅
-        </div>
-        <p className="mt-4 text-[12px] font-semibold text-[#8a7eb0]">01</p>
-        <p className="mt-2 text-[20px] font-black tracking-[-0.03em] text-[#2c2646]">
-          날짜와 조건 입력
-        </p>
-        <p className="mt-2 text-[14px] leading-6 text-[#6f6888]">
-          예식 날짜와 원하는 촬영 조건을 먼저 선택해주세요.
-        </p>
-      </div>
-
-      <div className="rounded-[22px] border border-[#ece4f7] bg-white px-5 py-5 shadow-[0_6px_16px_rgba(60,50,100,0.04)] transition hover:shadow-md">
-        <div className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-[#eef5ff] text-[20px]">
-          🔍
-        </div>
-        <p className="mt-4 text-[12px] font-semibold text-[#8a7eb0]">02</p>
-        <p className="mt-2 text-[20px] font-black tracking-[-0.03em] text-[#2c2646]">
-          가능한 작가 확인
-        </p>
-        <p className="mt-2 text-[14px] leading-6 text-[#6f6888]">
-          그 날짜에 실제로 촬영 가능한 작가를 중심으로 확인하실 수 있습니다.
-        </p>
-      </div>
-
-      <div className="rounded-[22px] border border-[#ece4f7] bg-white px-5 py-5 shadow-[0_6px_16px_rgba(60,50,100,0.04)] transition hover:shadow-md">
-        <div className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-[#fff3f7] text-[20px]">
-          💬
-        </div>
-        <p className="mt-4 text-[12px] font-semibold text-[#8a7eb0]">03</p>
-        <p className="mt-2 text-[20px] font-black tracking-[-0.03em] text-[#2c2646]">
-          바로 문의 연결
-        </p>
-        <p className="mt-2 text-[14px] leading-6 text-[#6f6888]">
-          마음에 드는 작가를 찾으셨다면 상세페이지에서 바로 문의하실 수 있습니다.
-        </p>
-      </div>
-    </div>
-  </div>
-</div>
-  </div>
-</section>
-
-  
-</section>
+          </section>
+        </section>
 
         <section className="mt-16">
           <h2 className="text-center text-[34px] font-black tracking-[-0.05em] text-[#2c2646]">

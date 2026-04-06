@@ -2,15 +2,15 @@
 
 import Link from "next/link";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
 
-type ArtistLookupResponse = {
-  success?: boolean;
-  artist?: {
-    id: string;
-    email: string;
-    name: string;
-  };
+type MeResponse = {
+  isLoggedIn: boolean;
+  isArtist: boolean;
+  artistId?: string | null;
+  kakaoId?: string | null;
+  userId?: string | null;
+  email?: string | null;
+  name?: string | null;
   error?: string;
 };
 
@@ -43,9 +43,6 @@ const headerButtonClass =
   "inline-flex h-[44px] min-w-[116px] items-center justify-center rounded-full border border-[#dccff2] bg-white px-5 text-[14px] font-semibold text-[#4d426b] transition-colors duration-200 hover:border-[#2c2448] hover:bg-[#2c2448] hover:text-white active:border-[#2c2448] active:bg-[#2c2448] active:text-white";
 
 function ArtistUploadPageInner() {
-  const searchParams = useSearchParams();
-  const email = searchParams.get("email") || "";
-
   const [artistId, setArtistId] = useState("");
   const [artistName, setArtistName] = useState("");
 
@@ -105,28 +102,54 @@ function ArtistUploadPageInner() {
   }
 
   useEffect(() => {
-    if (!email) {
-      setError("이메일 정보가 없어 올바른 링크로 다시 접속해 주세요.");
-      return;
-    }
-
-    const findArtist = async () => {
+    const initArtist = async () => {
       try {
         setIsFindingArtist(true);
+        setIsLoadingExistingImages(true);
         setError("");
         setMessage("");
 
-        const res = await fetch(
-          `/api/artists/by-email?email=${encodeURIComponent(email)}`
-        );
-        const data: ArtistLookupResponse = await res.json();
+        const meRes = await fetch("/api/me", {
+          method: "GET",
+          cache: "no-store",
+        });
 
-        if (!res.ok || !data.artist) {
-          throw new Error(data.error || "작가 정보를 찾지 못했습니다.");
+        const meData: MeResponse = await meRes.json();
+
+        if (!meRes.ok || !meData.isLoggedIn) {
+          window.location.href = "/login";
+          return;
         }
 
-        setArtistId(data.artist.id);
-        setArtistName(data.artist.name);
+        if (!meData.isArtist || !meData.artistId) {
+          window.location.href = "/artist-register";
+          return;
+        }
+
+        const currentArtistId = String(meData.artistId);
+        setArtistId(currentArtistId);
+
+        const artistRes = await fetch(`/api/artists/${currentArtistId}`, {
+          method: "GET",
+          cache: "no-store",
+        });
+
+        const artistData: ArtistDetailResponse = await artistRes.json();
+
+        if (!artistRes.ok) {
+          throw new Error("작가 상세 정보를 불러오지 못했습니다.");
+        }
+
+        setArtistName(
+          typeof artistData.name === "string"
+            ? artistData.name.trim()
+            : meData.name || ""
+        );
+
+        setExistingImages(normalizeImageArray(artistData.portfolio_images));
+        setRepresentativeImage(
+          typeof artistData.image === "string" ? artistData.image.trim() : ""
+        );
       } catch (err) {
         console.error(err);
         setError(
@@ -136,49 +159,12 @@ function ArtistUploadPageInner() {
         );
       } finally {
         setIsFindingArtist(false);
-      }
-    };
-
-    findArtist();
-  }, [email]);
-
-  useEffect(() => {
-    if (!artistId) return;
-
-    const loadExistingImages = async () => {
-      try {
-        setIsLoadingExistingImages(true);
-        setError("");
-
-        const res = await fetch(`/api/artists/${artistId}`, {
-          method: "GET",
-          cache: "no-store",
-        });
-
-        const data: ArtistDetailResponse = await res.json();
-
-        if (!res.ok) {
-          throw new Error("기존 포트폴리오 이미지를 불러오지 못했습니다.");
-        }
-
-        setExistingImages(normalizeImageArray(data.portfolio_images));
-        setRepresentativeImage(
-          typeof data.image === "string" ? data.image.trim() : ""
-        );
-      } catch (err) {
-        console.error(err);
-        setError(
-          err instanceof Error
-            ? err.message
-            : "기존 포트폴리오 이미지를 불러오는 중 오류가 발생했습니다."
-        );
-      } finally {
         setIsLoadingExistingImages(false);
       }
     };
 
-    loadExistingImages();
-  }, [artistId]);
+    initArtist();
+  }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(e.target.files || []);
@@ -321,11 +307,6 @@ function ArtistUploadPageInner() {
   };
 
   const handleUpload = async () => {
-    if (!email) {
-      setError("이메일 정보가 없습니다.");
-      return;
-    }
-
     if (!artistId) {
       setError("작가 정보를 아직 찾지 못했습니다.");
       return;
@@ -501,8 +482,6 @@ function ArtistUploadPageInner() {
 
   return (
     <main className="min-h-screen bg-[#faf7fc] text-[#251f3c]">
-     
-
       <div className="mx-auto max-w-[1440px] px-5 pb-16 pt-8 md:px-8 md:pt-10">
         <section className="overflow-hidden rounded-[38px] border border-[#ece3f6] bg-[radial-gradient(circle_at_top_left,_rgba(144,110,255,0.14),_transparent_32%),radial-gradient(circle_at_bottom_right,_rgba(244,170,214,0.12),_transparent_24%),linear-gradient(135deg,_#ffffff_0%,_#fcf9ff_52%,_#f8f3fb_100%)] p-6 shadow-[0_18px_40px_rgba(78,58,130,0.08)] md:p-8 xl:p-10">
           <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
@@ -519,8 +498,8 @@ function ArtistUploadPageInner() {
 
               <p className="mt-5 max-w-[760px] text-[16px] leading-8 text-[#6f6888]">
                 업로드된 사진은 고객이 작가님의 분위기와 디테일을 빠르게 이해하는 데
-                중요한 역할을 합니다. <br></br>대표이미지와 포트폴리오를 정리해 두면 문의
-                연결에도 도움이 됩니다.
+                중요한 역할을 합니다. <br />
+                대표이미지와 포트폴리오를 정리해 두면 문의 연결에도 도움이 됩니다.
               </p>
 
               <div className="mt-6 flex flex-wrap gap-3">
@@ -671,7 +650,7 @@ function ArtistUploadPageInner() {
                             className={`inline-flex h-[44px] items-center justify-center rounded-[14px] border text-[14px] font-bold transition ${
                               isBusy
                                 ? "cursor-not-allowed border-[#ece5f8] bg-[#f4f1fb] text-[#b7accf]"
-                                : "border-[#dccccf2] bg-white text-[#4d426b] hover:border-[#2c2448] hover:bg-[#2c2448] hover:text-white"
+                                : "border-[#dccff2] bg-white text-[#4d426b] hover:border-[#2c2448] hover:bg-[#2c2448] hover:text-white"
                             }`}
                           >
                             교체
@@ -837,7 +816,7 @@ function ArtistUploadPageInner() {
             </div>
           </div>
 
-          <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end sm:items-center">
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
             <Link
               href="/artist-dashboard"
               className="inline-flex h-[48px] items-center justify-center rounded-[16px] border border-[#dccff2] bg-white px-5 text-[14px] font-semibold text-[#4d426b] transition-all duration-200 hover:border-[#2c2448] hover:bg-[#2c2448] hover:text-white active:border-[#2c2448] active:bg-[#2c2448] active:text-white"

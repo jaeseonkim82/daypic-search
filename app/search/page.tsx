@@ -47,7 +47,7 @@ type SearchPageState = {
   scrollY: number;
 };
 
-const SERVICES = ["본식스냅", "서브스냅", "영상촬영", "아이폰스냅", "돌스냅"];
+const SERVICES = ["본식스냅", "서브스냅", "영상촬영", "아이폰스냅", "돌스냅","야외촬영","스튜디오촬영"];
 
 const REGIONS = [
   "서울",
@@ -60,6 +60,7 @@ const REGIONS = [
   "전라도",
   "강원도",
   "충청도",
+  "제주도",
 ];
 
 const PRICES = ["10~50만원", "50~100만원", "100~150만원", "150~200만원"];

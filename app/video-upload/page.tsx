@@ -1,17 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
 
-type ArtistLookupResponse = {
-  success?: boolean;
-  artist?: {
-    id: string;
-    email: string;
-    name: string;
-  };
-  error?: string;
+type MeResponse = {
+  ok?: boolean;
+  isLoggedIn: boolean;
+  isArtist?: boolean;
+  artistId?: string | null;
+  artistCode?: string | null;
+  kakaoId?: string | null;
+  email?: string | null;
+  name?: string | null;
 };
 
 type AirtableAttachment = {
@@ -22,19 +22,23 @@ type AirtableAttachment = {
 
 type ArtistDetailResponse = {
   id: string;
-  email: string;
-  name: string;
+  email?: string;
+  name?: string;
   video_link_1?: string;
   video_link_2?: string;
   video_link_3?: string;
   video_link_4?: string;
-  video_thumbnail?: AirtableAttachment[] | string;
+  video_thumb_1?: AirtableAttachment[] | string;
+  video_thumb_2?: AirtableAttachment[] | string;
+  video_thumb_3?: AirtableAttachment[] | string;
+  video_thumb_4?: AirtableAttachment[] | string;
   video_style_tags?: string[] | string;
 };
 
 type VideoPortfolioSaveResponse = {
   success?: boolean;
   error?: string;
+  message?: string;
 };
 
 type CloudinarySignResponse = {
@@ -47,10 +51,6 @@ type CloudinarySignResponse = {
 };
 
 const MAX_THUMBNAIL_SIZE = 10 * 1024 * 1024;
-const ADMIN_INQUIRY_URL = "https://pf.kakao.com/_YOUR_CHANNEL_LINK";
-
-const headerButtonClass =
-  "inline-flex h-[44px] min-w-[116px] items-center justify-center rounded-full border border-[#dccff2] bg-white px-5 text-[14px] font-semibold text-[#4d426b] transition-colors duration-200 hover:border-[#2c2448] hover:bg-[#2c2448] hover:text-white active:border-[#2c2448] active:bg-[#2c2448] active:text-white";
 
 function normalizeTagArray(value: unknown): string[] {
   if (!value) return [];
@@ -99,12 +99,90 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
 }
 
-function VideoUploadPageInner() {
-  const searchParams = useSearchParams();
-  const email = searchParams.get("email") || "";
+function ThumbnailUploader({
+  title,
+  existingUrl,
+  previewUrl,
+  selectedFileName,
+  inputRef,
+  onChange,
+  disabled,
+}: {
+  title: string;
+  existingUrl: string;
+  previewUrl: string;
+  selectedFileName: string;
+  inputRef: React.RefObject<HTMLInputElement | null>;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  disabled: boolean;
+}) {
+  return (
+    <div className="rounded-[22px] border border-[#ebe4f5] bg-[#faf7ff] p-5">
+      <div className="mb-3 text-[15px] font-bold text-[#4a3c7d]">{title}</div>
 
+      {existingUrl ? (
+        <div className="mb-4">
+          <p className="mb-2 text-[13px] font-medium text-[#6e6786]">
+            현재 저장된 썸네일
+          </p>
+          <img
+            src={existingUrl}
+            alt={`${title}-existing`}
+            className="h-auto w-full max-w-[260px] rounded-[16px] border border-[#ebe4f5] object-cover"
+          />
+        </div>
+      ) : null}
+
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        onChange={onChange}
+        disabled={disabled}
+        className="hidden"
+      />
+
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        disabled={disabled}
+        className={`inline-flex h-[44px] min-w-[160px] items-center justify-center rounded-[14px] px-4 text-[14px] font-bold text-white transition ${
+          disabled
+            ? "cursor-not-allowed bg-[#c4b7f1]"
+            : "bg-[#6948f5] hover:bg-[#5636df]"
+        }`}
+      >
+        {existingUrl ? "썸네일 변경하기" : "썸네일 선택하기"}
+      </button>
+
+      <p className="mt-3 text-[13px] text-[#6f6888]">
+        {selectedFileName || "아직 선택된 새 썸네일이 없습니다."}
+      </p>
+
+      <p className="mt-1 text-[12px] text-[#9a91b8]">
+        JPG, PNG 등 이미지 파일 / 최대 10MB
+      </p>
+
+      {previewUrl ? (
+        <div className="mt-4">
+          <p className="mb-2 text-[13px] font-medium text-[#6e6786]">
+            새 썸네일 미리보기
+          </p>
+          <img
+            src={previewUrl}
+            alt={`${title}-preview`}
+            className="h-auto w-full max-w-[260px] rounded-[16px] border border-[#ebe4f5] object-cover"
+          />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+export default function VideoUploadPage() {
   const [artistId, setArtistId] = useState("");
   const [artistName, setArtistName] = useState("");
+  const [artistEmail, setArtistEmail] = useState("");
 
   const [videoLink1, setVideoLink1] = useState("");
   const [videoLink2, setVideoLink2] = useState("");
@@ -112,131 +190,171 @@ function VideoUploadPageInner() {
   const [videoLink4, setVideoLink4] = useState("");
   const [videoStyleTags, setVideoStyleTags] = useState("");
 
-  const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
-  const [existingThumbnailUrl, setExistingThumbnailUrl] = useState("");
+  const [thumbFile1, setThumbFile1] = useState<File | null>(null);
+  const [thumbFile2, setThumbFile2] = useState<File | null>(null);
+  const [thumbFile3, setThumbFile3] = useState<File | null>(null);
+  const [thumbFile4, setThumbFile4] = useState<File | null>(null);
+
+  const [existingThumbUrl1, setExistingThumbUrl1] = useState("");
+  const [existingThumbUrl2, setExistingThumbUrl2] = useState("");
+  const [existingThumbUrl3, setExistingThumbUrl3] = useState("");
+  const [existingThumbUrl4, setExistingThumbUrl4] = useState("");
 
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
-  const [isFindingArtist, setIsFindingArtist] = useState(false);
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
   const [isLoadingExistingData, setIsLoadingExistingData] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  const thumbnailInputRef = useRef<HTMLInputElement | null>(null);
+  const thumbInputRef1 = useRef<HTMLInputElement | null>(null);
+  const thumbInputRef2 = useRef<HTMLInputElement | null>(null);
+  const thumbInputRef3 = useRef<HTMLInputElement | null>(null);
+  const thumbInputRef4 = useRef<HTMLInputElement | null>(null);
 
-  const thumbnailPreviewUrl = useMemo(() => {
-    if (!thumbnailFile) return "";
-    return URL.createObjectURL(thumbnailFile);
-  }, [thumbnailFile]);
+  const thumbPreviewUrl1 = useMemo(() => {
+    if (!thumbFile1) return "";
+    return URL.createObjectURL(thumbFile1);
+  }, [thumbFile1]);
+
+  const thumbPreviewUrl2 = useMemo(() => {
+    if (!thumbFile2) return "";
+    return URL.createObjectURL(thumbFile2);
+  }, [thumbFile2]);
+
+  const thumbPreviewUrl3 = useMemo(() => {
+    if (!thumbFile3) return "";
+    return URL.createObjectURL(thumbFile3);
+  }, [thumbFile3]);
+
+  const thumbPreviewUrl4 = useMemo(() => {
+    if (!thumbFile4) return "";
+    return URL.createObjectURL(thumbFile4);
+  }, [thumbFile4]);
 
   useEffect(() => {
     return () => {
-      if (thumbnailPreviewUrl) {
-        URL.revokeObjectURL(thumbnailPreviewUrl);
-      }
+      if (thumbPreviewUrl1) URL.revokeObjectURL(thumbPreviewUrl1);
+      if (thumbPreviewUrl2) URL.revokeObjectURL(thumbPreviewUrl2);
+      if (thumbPreviewUrl3) URL.revokeObjectURL(thumbPreviewUrl3);
+      if (thumbPreviewUrl4) URL.revokeObjectURL(thumbPreviewUrl4);
     };
-  }, [thumbnailPreviewUrl]);
+  }, [thumbPreviewUrl1, thumbPreviewUrl2, thumbPreviewUrl3, thumbPreviewUrl4]);
 
   useEffect(() => {
-    if (!email) {
-      setError("이메일 정보가 없어 올바른 링크로 다시 접속해 주세요.");
-      return;
-    }
+    let ignore = false;
 
-    const findArtist = async () => {
+    async function loadSessionAndArtist() {
       try {
-        setIsFindingArtist(true);
+        setIsCheckingSession(true);
+        setIsLoadingExistingData(true);
         setError("");
         setMessage("");
 
-        const res = await fetch(
-          `/api/artists/by-email?email=${encodeURIComponent(email)}`
-        );
-        const data: ArtistLookupResponse = await res.json();
-
-        if (!res.ok || !data.artist) {
-          throw new Error(data.error || "작가 정보를 찾지 못했습니다.");
-        }
-
-        setArtistId(data.artist.id);
-        setArtistName(data.artist.name);
-      } catch (err) {
-        console.error(err);
-        setError(
-          err instanceof Error
-            ? err.message
-            : "작가 정보를 불러오는 중 오류가 발생했습니다."
-        );
-      } finally {
-        setIsFindingArtist(false);
-      }
-    };
-
-    findArtist();
-  }, [email]);
-
-  useEffect(() => {
-    if (!artistId) return;
-
-    const loadExistingData = async () => {
-      try {
-        setIsLoadingExistingData(true);
-        setError("");
-
-        const res = await fetch(`/api/artists/${artistId}`, {
+        const meRes = await fetch("/api/me", {
           method: "GET",
+          credentials: "include",
           cache: "no-store",
         });
 
-        const data: ArtistDetailResponse = await res.json();
+        const meData: MeResponse = await meRes.json();
 
-        if (!res.ok) {
+        if (!meRes.ok || !meData.isLoggedIn) {
+          window.location.href = "/login";
+          return;
+        }
+
+        if (!meData.isArtist || !meData.artistId) {
+          window.location.href = "/artist-register";
+          return;
+        }
+
+        const currentArtistId = String(meData.artistId);
+
+        if (!ignore) {
+          setArtistId(currentArtistId);
+          setArtistName(meData.name || "");
+          setArtistEmail(meData.email || "");
+        }
+
+        const artistRes = await fetch(`/api/artists/${currentArtistId}`, {
+          method: "GET",
+          credentials: "include",
+          cache: "no-store",
+        });
+
+        const artistData: ArtistDetailResponse = await artistRes.json();
+
+        if (!artistRes.ok) {
           throw new Error("기존 영상 포트폴리오 정보를 불러오지 못했습니다.");
         }
 
-        setVideoLink1(data.video_link_1 || "");
-        setVideoLink2(data.video_link_2 || "");
-        setVideoLink3(data.video_link_3 || "");
-        setVideoLink4(data.video_link_4 || "");
-        setExistingThumbnailUrl(normalizeThumbnailUrl(data.video_thumbnail));
-        setVideoStyleTags(normalizeTagArray(data.video_style_tags).join(", "));
+        if (!ignore) {
+          setArtistName(artistData.name || meData.name || "");
+          setArtistEmail(artistData.email || meData.email || "");
+          setVideoLink1(artistData.video_link_1 || "");
+          setVideoLink2(artistData.video_link_2 || "");
+          setVideoLink3(artistData.video_link_3 || "");
+          setVideoLink4(artistData.video_link_4 || "");
+          setExistingThumbUrl1(normalizeThumbnailUrl(artistData.video_thumb_1));
+          setExistingThumbUrl2(normalizeThumbnailUrl(artistData.video_thumb_2));
+          setExistingThumbUrl3(normalizeThumbnailUrl(artistData.video_thumb_3));
+          setExistingThumbUrl4(normalizeThumbnailUrl(artistData.video_thumb_4));
+          setVideoStyleTags(normalizeTagArray(artistData.video_style_tags).join(", "));
+        }
       } catch (err) {
         console.error(err);
-        setError(
-          err instanceof Error
-            ? err.message
-            : "기존 영상 포트폴리오 정보를 불러오는 중 오류가 발생했습니다."
-        );
+        if (!ignore) {
+          setError(
+            err instanceof Error
+              ? err.message
+              : "영상 포트폴리오 정보를 불러오는 중 오류가 발생했습니다."
+          );
+        }
       } finally {
-        setIsLoadingExistingData(false);
+        if (!ignore) {
+          setIsCheckingSession(false);
+          setIsLoadingExistingData(false);
+        }
       }
+    }
+
+    loadSessionAndArtist();
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  const makeThumbnailChangeHandler =
+    (setter: React.Dispatch<React.SetStateAction<File | null>>) =>
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0] || null;
+
+      if (!file) {
+        setter(null);
+        return;
+      }
+
+      if (file.size > MAX_THUMBNAIL_SIZE) {
+        setError(
+          `썸네일 이미지 용량이 너무 큽니다. 최대 10MB까지 가능합니다. (${file.name}: ${formatBytes(
+            file.size
+          )})`
+        );
+        setter(null);
+        return;
+      }
+
+      setError("");
+      setMessage("");
+      setter(file);
     };
 
-    loadExistingData();
-  }, [artistId]);
-
-  const handleThumbnailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0] || null;
-
-    if (!file) {
-      setThumbnailFile(null);
-      return;
-    }
-
-    if (file.size > MAX_THUMBNAIL_SIZE) {
-      setError(
-        `썸네일 이미지 용량이 너무 큽니다. 최대 10MB까지 가능합니다. (${file.name}: ${formatBytes(
-          file.size
-        )})`
-      );
-      setThumbnailFile(null);
-      return;
-    }
-
-    setError("");
-    setMessage("");
-    setThumbnailFile(file);
-  };
+  const handleThumbnailChange1 = makeThumbnailChangeHandler(setThumbFile1);
+  const handleThumbnailChange2 = makeThumbnailChangeHandler(setThumbFile2);
+  const handleThumbnailChange3 = makeThumbnailChangeHandler(setThumbFile3);
+  const handleThumbnailChange4 = makeThumbnailChangeHandler(setThumbFile4);
 
   const uploadThumbnailToCloudinary = async (file: File) => {
     const signRes = await fetch("/api/cloudinary/sign", {
@@ -277,12 +395,18 @@ function VideoUploadPageInner() {
     return uploadData.secure_url as string;
   };
 
-  const handleSave = async () => {
-    if (!email) {
-      setError("이메일 정보가 없습니다.");
-      return;
-    }
+  const uploadOptionalThumbnail = async (
+    file: File | null,
+    existingUrl: string,
+    label: string
+  ) => {
+    if (!file) return existingUrl;
 
+    setMessage(`${label} 업로드 중...`);
+    return await uploadThumbnailToCloudinary(file);
+  };
+
+  const handleSave = async () => {
     if (!artistId) {
       setError("작가 정보를 아직 찾지 못했습니다.");
       return;
@@ -304,12 +428,26 @@ function VideoUploadPageInner() {
       setError("");
       setMessage("저장을 준비하고 있습니다...");
 
-      let thumbnailUrl = existingThumbnailUrl;
-
-      if (thumbnailFile) {
-        setMessage("썸네일을 업로드하고 있습니다...");
-        thumbnailUrl = await uploadThumbnailToCloudinary(thumbnailFile);
-      }
+      const thumbUrl1 = await uploadOptionalThumbnail(
+        thumbFile1,
+        existingThumbUrl1,
+        "영상 1 썸네일"
+      );
+      const thumbUrl2 = await uploadOptionalThumbnail(
+        thumbFile2,
+        existingThumbUrl2,
+        "영상 2 썸네일"
+      );
+      const thumbUrl3 = await uploadOptionalThumbnail(
+        thumbFile3,
+        existingThumbUrl3,
+        "영상 3 썸네일"
+      );
+      const thumbUrl4 = await uploadOptionalThumbnail(
+        thumbFile4,
+        existingThumbUrl4,
+        "영상 4 썸네일"
+      );
 
       setMessage("영상 포트폴리오를 저장하고 있습니다...");
 
@@ -318,12 +456,16 @@ function VideoUploadPageInner() {
         headers: {
           "Content-Type": "application/json",
         },
+        credentials: "include",
         body: JSON.stringify({
           video_link_1: videoLink1.trim(),
           video_link_2: videoLink2.trim(),
           video_link_3: videoLink3.trim(),
           video_link_4: videoLink4.trim(),
-          video_thumbnail: thumbnailUrl,
+          video_thumb_1: thumbUrl1,
+          video_thumb_2: thumbUrl2,
+          video_thumb_3: thumbUrl3,
+          video_thumb_4: thumbUrl4,
           video_style_tags: videoStyleTags
             .split(",")
             .map((item) => item.trim())
@@ -334,11 +476,19 @@ function VideoUploadPageInner() {
       const data: VideoPortfolioSaveResponse = await res.json();
 
       if (!res.ok || !data.success) {
-        throw new Error(data.error || "영상 포트폴리오 저장에 실패했습니다.");
+        throw new Error(data.error || data.message || "영상 포트폴리오 저장에 실패했습니다.");
       }
 
-      setExistingThumbnailUrl(thumbnailUrl);
-      setThumbnailFile(null);
+      setExistingThumbUrl1(thumbUrl1);
+      setExistingThumbUrl2(thumbUrl2);
+      setExistingThumbUrl3(thumbUrl3);
+      setExistingThumbUrl4(thumbUrl4);
+
+      setThumbFile1(null);
+      setThumbFile2(null);
+      setThumbFile3(null);
+      setThumbFile4(null);
+
       setMessage("영상 포트폴리오 저장이 완료되었습니다.");
     } catch (err) {
       console.error(err);
@@ -353,12 +503,10 @@ function VideoUploadPageInner() {
     }
   };
 
-  const isBusy = isFindingArtist || isLoadingExistingData || isSaving;
+  const isBusy = isCheckingSession || isLoadingExistingData || isSaving;
 
   return (
     <main className="min-h-screen bg-[#faf7fc] text-[#251f3c]">
-
-
       <div className="mx-auto max-w-[1440px] px-5 pb-16 pt-8 md:px-8 md:pt-10">
         <section className="overflow-hidden rounded-[38px] border border-[#ece3f6] bg-[radial-gradient(circle_at_top_left,_rgba(144,110,255,0.14),_transparent_32%),radial-gradient(circle_at_bottom_right,_rgba(244,170,214,0.12),_transparent_24%),linear-gradient(135deg,_#ffffff_0%,_#fcf9ff_52%,_#f8f3fb_100%)] p-6 shadow-[0_18px_40px_rgba(78,58,130,0.08)] md:p-8 xl:p-10">
           <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
@@ -374,9 +522,8 @@ function VideoUploadPageInner() {
               </h1>
 
               <p className="mt-5 max-w-[760px] text-[16px] leading-8 text-[#6f6888]">
-                영상 링크와 대표 썸네일은 고객이 작가님의 촬영 스타일과 분위기를
-                빠르게 이해하는 데 중요한 기준이 됩니다. 정리된 영상 포트폴리오는
-                문의 연결에도 도움이 됩니다.
+                영상 링크와 링크별 썸네일은 고객이 작가님의 촬영 스타일과 분위기를 빠르게 이해하는 데 중요한 기준이 됩니다.
+                정리된 영상 포트폴리오는 문의 연결에도 도움이 됩니다.
               </p>
 
               <div className="mt-6 flex flex-wrap gap-3">
@@ -384,7 +531,7 @@ function VideoUploadPageInner() {
                   영상 링크 최대 4개
                 </div>
                 <div className="inline-flex rounded-full bg-[#f8eef8] px-4 py-2 text-[13px] font-semibold text-[#c0569f]">
-                  대표 썸네일 설정 가능
+                  링크별 썸네일 설정 가능
                 </div>
                 <div className="inline-flex rounded-full bg-[#edf5ff] px-4 py-2 text-[13px] font-semibold text-[#4a73d6]">
                   스타일 태그 저장 가능
@@ -407,7 +554,7 @@ function VideoUploadPageInner() {
                 <div className="rounded-[18px] bg-[#f7f3ff] px-4 py-4">
                   <span className="font-bold text-[#4f3ccf]">작가명</span>
                   <div className="mt-1 text-[#2d2748]">
-                    {isFindingArtist
+                    {isCheckingSession
                       ? "작가 정보를 확인하고 있습니다..."
                       : artistName || "작가 정보를 찾지 못했습니다."}
                   </div>
@@ -416,21 +563,21 @@ function VideoUploadPageInner() {
                 <div className="rounded-[18px] bg-[#fcf4f8] px-4 py-4">
                   <span className="font-bold text-[#b95d98]">등록된 영상 링크</span>
                   <div className="mt-1 text-[#2d2748]">
-                    {
-                      [videoLink1, videoLink2, videoLink3, videoLink4].filter(
-                        (item) => item.trim()
-                      ).length
-                    }
+                    {[videoLink1, videoLink2, videoLink3, videoLink4].filter((item) => item.trim()).length}
                     개 입력됨
                   </div>
                 </div>
 
                 <div className="rounded-[18px] bg-[#eef5ff] px-4 py-4">
-                  <span className="font-bold text-[#5b7fda]">대표 썸네일</span>
+                  <span className="font-bold text-[#5b7fda]">등록된 썸네일</span>
                   <div className="mt-1 text-[#2d2748]">
-                    {existingThumbnailUrl || thumbnailPreviewUrl
-                      ? "대표 썸네일이 설정되어 있습니다."
-                      : "대표 썸네일이 아직 설정되지 않았습니다."}
+                    {[
+                      existingThumbUrl1 || thumbPreviewUrl1,
+                      existingThumbUrl2 || thumbPreviewUrl2,
+                      existingThumbUrl3 || thumbPreviewUrl3,
+                      existingThumbUrl4 || thumbPreviewUrl4,
+                    ].filter(Boolean).length}
+                    개 설정됨
                   </div>
                 </div>
 
@@ -442,6 +589,13 @@ function VideoUploadPageInner() {
                       : "영상 스타일 태그가 아직 입력되지 않았습니다."}
                   </div>
                 </div>
+
+                {!!artistEmail && (
+                  <div className="rounded-[18px] bg-[#faf7ff] px-4 py-4">
+                    <span className="font-bold text-[#7a5cf6]">이메일</span>
+                    <div className="mt-1 text-[#2d2748]">{artistEmail}</div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -463,23 +617,14 @@ function VideoUploadPageInner() {
 
         <section className="mt-8 grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
           <div className="rounded-[30px] border border-[#e8dff3] bg-white p-6 shadow-[0_10px_26px_rgba(60,50,100,0.06)] md:p-8">
-            <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-              <div>
-                <h2 className="text-[26px] font-black tracking-[-0.04em] text-[#2b2745]">
-                  영상 링크 등록
-                </h2>
-                <p className="mt-2 text-[14px] leading-7 text-[#6b6482]">
-                  유튜브, 인스타 릴스, 비메오 등 고객에게 보여줄 영상 링크를
-                  등록해 주세요.
-                </p>
-              </div>
-            </div>
-
-            {isLoadingExistingData ? (
-              <p className="mt-6 text-[15px] text-[#6f6888]">
-                기존 영상 포트폴리오 정보를 불러오고 있습니다...
+            <div>
+              <h2 className="text-[26px] font-black tracking-[-0.04em] text-[#2b2745]">
+                영상 링크 등록
+              </h2>
+              <p className="mt-2 text-[14px] leading-7 text-[#6b6482]">
+                유튜브, 인스타 릴스, 비메오 등 고객에게 보여줄 영상 링크를 등록해 주세요.
               </p>
-            ) : null}
+            </div>
 
             <div className="mt-6 grid gap-4">
               <div>
@@ -559,71 +704,53 @@ function VideoUploadPageInner() {
 
           <div className="rounded-[30px] border border-[#e8dff3] bg-white p-6 shadow-[0_10px_26px_rgba(60,50,100,0.06)] md:p-8">
             <h2 className="text-[26px] font-black tracking-[-0.04em] text-[#2b2745]">
-              대표 썸네일 등록
+              링크별 썸네일 등록
             </h2>
             <p className="mt-2 text-[14px] leading-7 text-[#6b6482]">
-              고객에게 먼저 보여질 대표 썸네일을 등록하거나 변경해 주세요.
+              각 영상 링크에 맞는 썸네일을 각각 등록하거나 변경해 주세요.
             </p>
 
-            {existingThumbnailUrl ? (
-              <div className="mt-5">
-                <p className="mb-3 text-[14px] font-medium text-[#6e6786]">
-                  현재 저장된 대표 썸네일
-                </p>
-                <img
-                  src={existingThumbnailUrl}
-                  alt="existing-thumbnail"
-                  className="h-auto w-full max-w-[360px] rounded-[18px] border border-[#ebe4f5] object-cover"
-                />
-              </div>
-            ) : null}
-
-            <div className="mt-5 rounded-[20px] bg-[#faf7ff] p-5">
-              <input
-                ref={thumbnailInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleThumbnailChange}
+            <div className="mt-5 grid gap-4 md:grid-cols-2">
+              <ThumbnailUploader
+                title="영상 1 썸네일"
+                existingUrl={existingThumbUrl1}
+                previewUrl={thumbPreviewUrl1}
+                selectedFileName={thumbFile1 ? `선택된 파일: ${thumbFile1.name}` : ""}
+                inputRef={thumbInputRef1}
+                onChange={handleThumbnailChange1}
                 disabled={isBusy}
-                className="hidden"
               />
 
-              <button
-                type="button"
-                onClick={() => thumbnailInputRef.current?.click()}
+              <ThumbnailUploader
+                title="영상 2 썸네일"
+                existingUrl={existingThumbUrl2}
+                previewUrl={thumbPreviewUrl2}
+                selectedFileName={thumbFile2 ? `선택된 파일: ${thumbFile2.name}` : ""}
+                inputRef={thumbInputRef2}
+                onChange={handleThumbnailChange2}
                 disabled={isBusy}
-                className={`inline-flex h-[48px] min-w-[180px] items-center justify-center rounded-[16px] px-5 text-[15px] font-bold text-white transition ${
-                  isBusy
-                    ? "cursor-not-allowed bg-[#c4b7f1]"
-                    : "bg-[#6948f5] hover:bg-[#5636df]"
-                }`}
-              >
-                {existingThumbnailUrl ? "썸네일 변경하기" : "썸네일 선택하기"}
-              </button>
+              />
 
-              <p className="mt-4 text-[14px] text-[#6f6888]">
-                {thumbnailFile
-                  ? `선택된 파일: ${thumbnailFile.name}`
-                  : "아직 선택된 새 썸네일이 없습니다."}
-              </p>
+              <ThumbnailUploader
+                title="영상 3 썸네일"
+                existingUrl={existingThumbUrl3}
+                previewUrl={thumbPreviewUrl3}
+                selectedFileName={thumbFile3 ? `선택된 파일: ${thumbFile3.name}` : ""}
+                inputRef={thumbInputRef3}
+                onChange={handleThumbnailChange3}
+                disabled={isBusy}
+              />
 
-              <p className="mt-2 text-[13px] text-[#9a91b8]">
-                JPG, PNG 등 이미지 파일 / 최대 10MB
-              </p>
+              <ThumbnailUploader
+                title="영상 4 썸네일"
+                existingUrl={existingThumbUrl4}
+                previewUrl={thumbPreviewUrl4}
+                selectedFileName={thumbFile4 ? `선택된 파일: ${thumbFile4.name}` : ""}
+                inputRef={thumbInputRef4}
+                onChange={handleThumbnailChange4}
+                disabled={isBusy}
+              />
             </div>
-
-            {thumbnailPreviewUrl ? (
-              <div className="mt-6">
-                <p className="mb-3 text-[14px] font-medium text-[#6e6786]">
-                  새 썸네일 미리보기
-                </p>
-                <img
-                  src={thumbnailPreviewUrl}
-                  alt="thumbnail-preview"
-                  className="h-auto w-full max-w-[360px] rounded-[18px] border border-[#ebe4f5] object-cover"
-                />
-              </div>
-            ) : null}
 
             <button
               type="button"
@@ -656,7 +783,7 @@ function VideoUploadPageInner() {
 
             <div className="rounded-[18px] bg-[#faf7ff] px-4 py-4 text-[14px] leading-6 text-[#645d80]">
               <span className="block font-bold text-[#4f3ccf]">썸네일 통일감</span>
-              대표 썸네일은 작가님의 전체 영상 분위기와 잘 맞는 컷으로 선택해 주세요.
+              각 영상 썸네일은 해당 영상 분위기와 잘 맞는 컷으로 선택해 주세요.
             </div>
 
             <div className="rounded-[18px] bg-[#faf7ff] px-4 py-4 text-[14px] leading-6 text-[#645d80]">
@@ -670,16 +797,16 @@ function VideoUploadPageInner() {
             </div>
           </div>
 
-          <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end sm:items-center">
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
             <Link
               href="/artist-dashboard"
-              className="inline-flex h-[48px] items-center justify-center rounded-[16px] border border-[#dccff2] bg-white px-5 text-[14px] font-semibold text-[#4d426b] transition-all duration-200 hover:border-[#2c2448] hover:bg-[#2c2448] hover:text-white active:border-[#2c2448] active:bg-[#2c2448] active:text-white"
+              className="inline-flex h-[48px] items-center justify-center rounded-[16px] border border-[#dccff2] bg-white px-5 text-[14px] font-semibold text-[#4d426b] transition-all duration-200 hover:border-[#2c2448] hover:bg-[#2c2448] hover:text-white"
             >
               대시보드 돌아가기
             </Link>
             <Link
               href="/artist-calendar"
-              className="inline-flex h-[48px] items-center justify-center rounded-[16px] border border-[#dccff2] bg-white px-5 text-[14px] font-semibold text-[#4d426b] transition-all duration-200 hover:border-[#2c2448] hover:bg-[#2c2448] hover:text-white active:border-[#2c2448] active:bg-[#2c2448] active:text-white"
+              className="inline-flex h-[48px] items-center justify-center rounded-[16px] border border-[#dccff2] bg-white px-5 text-[14px] font-semibold text-[#4d426b] transition-all duration-200 hover:border-[#2c2448] hover:bg-[#2c2448] hover:text-white"
             >
               일정 관리
             </Link>
@@ -687,19 +814,5 @@ function VideoUploadPageInner() {
         </section>
       </div>
     </main>
-  );
-}
-
-export default function VideoUploadPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="flex min-h-screen items-center justify-center bg-[#faf7fc] text-[18px] text-[#4a3c7d]">
-          로딩 중입니다...
-        </div>
-      }
-    >
-      <VideoUploadPageInner />
-    </Suspense>
   );
 }
