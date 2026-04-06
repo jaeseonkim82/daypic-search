@@ -4,7 +4,7 @@ import { signIn } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 
-export default function LoginPage() {
+export default function LoginPageClient() {
   const searchParams = useSearchParams();
   const error = searchParams.get("error");
 
@@ -18,7 +18,6 @@ export default function LoginPage() {
   return (
     <main className="min-h-screen bg-[#faf7fc] px-5 py-16 text-[#251f3c] md:px-8">
       <div className="mx-auto max-w-[560px]">
-        
         <section className="rounded-[32px] border border-[#e9def7] bg-white p-7 shadow-[0_18px_40px_rgba(95,71,147,0.08)] md:p-9">
           <div className="inline-flex rounded-full border border-[#eadff8] bg-[#faf7ff] px-4 py-2 text-[12px] font-semibold text-[#7a5cf6]">
             DAYPIC LOGIN
@@ -50,7 +49,7 @@ export default function LoginPage() {
           </button>
 
           <div className="mt-5 rounded-[20px] border border-[#eee6f8] bg-[#faf8fe] px-4 py-4 text-[14px] leading-6 text-[#726a8e]">
-            이메일 로그인은 다음 단계에서 추가할 예정이에요.
+            이메일 로그인은 추후 업데이트 예정이에요.
           </div>
 
           <div className="mt-7 flex flex-wrap gap-3">
