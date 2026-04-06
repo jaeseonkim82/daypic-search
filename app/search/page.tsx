@@ -603,20 +603,15 @@ export default function HomePage() {
 
                     <div className="relative">
   <input
-    type={date ? "date" : "text"}
-    value={date}
-    placeholder="날짜 선택"
-    onFocus={(e) => (e.target.type = "date")}
-    onBlur={(e) => {
-      if (!date) e.target.type = "text";
-    }}
-    onChange={(e) => setDate(e.target.value)}
-    className={`relative h-[52px] w-full rounded-[16px] border px-4 text-[15px] text-[#2c2843] placeholder:text-[#a59bbd] outline-none transition appearance-none ${
-      date
-        ? "border-[#8a63ff] bg-[#faf7ff] shadow-[0_0_0_3px_rgba(138,99,255,0.08)]"
-        : "border-[#ece5f5] bg-[#fcfbfe]"
-    }`}
-  />
+  type="date"
+  value={date}
+  onChange={(e) => setDate(e.target.value)}
+  className={`relative h-[52px] w-full rounded-[16px] border px-4 text-[15px] text-[#2c2843] outline-none transition appearance-none ${
+    date
+      ? "border-[#8a63ff] bg-[#faf7ff] shadow-[0_0_0_3px_rgba(138,99,255,0.08)]"
+      : "border-[#ece5f5] bg-[#fcfbfe]"
+  }`}
+/>
 </div>
                   </div>
 
