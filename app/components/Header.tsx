@@ -109,7 +109,7 @@ if (mounted) {
                       : baseButtonClass
                   }
                 >
-                  작가페이지
+                  정보등록
                 </Link>
               ) : (
                 <Link
