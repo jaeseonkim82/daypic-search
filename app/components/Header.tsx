@@ -97,7 +97,7 @@ if (mounted) {
                 href="/mypage"
                 className={pathname === "/mypage" ? activeButtonClass : baseButtonClass}
               >
-                마이페이지
+                Mypage
               </Link>
 
               {me.isArtist ? (
@@ -109,7 +109,7 @@ if (mounted) {
                       : baseButtonClass
                   }
                 >
-                  작가 대시보드
+                  작가페이지
                 </Link>
               ) : (
                 <Link
@@ -120,7 +120,7 @@ if (mounted) {
                       : baseButtonClass
                   }
                 >
-                  작가 등록
+                  작가등록
                 </Link>
               )}
 
