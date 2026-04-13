@@ -49,7 +49,7 @@ export default function LoginPageClient() {
           </button>
 
           <div className="mt-5 rounded-[20px] border border-[#eee6f8] bg-[#faf8fe] px-4 py-4 text-[14px] leading-6 text-[#726a8e]">
-            이메일 로그인은 다음 단계에서 추가할 예정이에요.
+            이메일 로그인은 추후 업데이트 예정이에요.
           </div>
 
           <div className="mt-7 flex flex-wrap gap-3">
