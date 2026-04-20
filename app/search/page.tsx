@@ -47,7 +47,7 @@ type SearchPageState = {
   scrollY: number;
 };
 
-const SERVICES = ["본식스냅", "서브스냅", "영상촬영", "아이폰스냅", "돌스냅","야외촬영","스튜디오촬영"];
+const SERVICES = ["본식스냅", "서브스냅", "영상촬영", "아이폰스냅", "돌스냅", "야외촬영", "스튜디오촬영", '해외촬영', '커플스냅'];
 
 const REGIONS = [
   "서울",
@@ -172,16 +172,16 @@ function normalizeArtistFromApi(rawArtist: Record<string, any>): Artist {
     typeof rawArtist.rating === "number"
       ? rawArtist.rating
       : typeof rawArtist["평점"] === "number"
-      ? rawArtist["평점"]
-      : 4.8;
+        ? rawArtist["평점"]
+        : 4.8;
 
   return {
     id: String(rawArtist.id ?? ""),
     name: String(
       rawArtist.name ??
-        rawArtist["작가 또는 업체명"] ??
-        rawArtist["업체명"] ??
-        "이름 없는 작가"
+      rawArtist["작가 또는 업체명"] ??
+      rawArtist["업체명"] ??
+      "이름 없는 작가"
     ),
     email: String(rawArtist.email ?? ""),
     service: normalizeArray(
@@ -280,7 +280,7 @@ export default function HomePage() {
       setHasSearched(!!savedPageState.hasSearched);
       setMessage(
         savedPageState.message ||
-          "예식 날짜와 조건을 입력하면 촬영 가능한 작가를 바로 찾아볼 수 있어요."
+        "예식 날짜와 조건을 입력하면 촬영 가능한 작가를 바로 찾아볼 수 있어요."
       );
       pendingScrollRestoreRef.current =
         typeof savedPageState.scrollY === "number" ? savedPageState.scrollY : 0;
@@ -573,7 +573,7 @@ export default function HomePage() {
 
   return (
     <main className="min-h-screen bg-[#faf7fc] text-[#251f3c]">
-  
+
 
       <div className="mx-auto max-w-[1540px] px-5 pb-12 pt-6 md:px-8 md:pt-8">
         <section className="relative rounded-[40px] border border-[#eee5f7] bg-[radial-gradient(circle_at_top_left,_rgba(164,133,255,0.18),_transparent_32%),radial-gradient(circle_at_bottom_right,_rgba(244,170,214,0.18),_transparent_25%),linear-gradient(135deg,_#ffffff_0%,_#fcf9ff_45%,_#f8f3fb_100%)] p-5 shadow-[0_18px_50px_rgba(95,71,147,0.08)] md:p-8 xl:p-10">
@@ -602,17 +602,16 @@ export default function HomePage() {
                     </label>
 
                     <div className="relative">
-  <input
-  type="date"
-  value={date}
-  onChange={(e) => setDate(e.target.value)}
-  className={`relative h-[52px] w-full rounded-[16px] border px-4 text-[15px] text-[#2c2843] outline-none transition appearance-none ${
-    date
-      ? "border-[#8a63ff] bg-[#faf7ff] shadow-[0_0_0_3px_rgba(138,99,255,0.08)]"
-      : "border-[#ece5f5] bg-[#fcfbfe]"
-  }`}
-/>
-</div>
+                      <input
+                        type="date"
+                        value={date}
+                        onChange={(e) => setDate(e.target.value)}
+                        className={`relative h-[52px] w-full rounded-[16px] border px-4 text-[15px] text-[#2c2843] outline-none transition appearance-none ${date
+                          ? "border-[#8a63ff] bg-[#faf7ff] shadow-[0_0_0_3px_rgba(138,99,255,0.08)]"
+                          : "border-[#ece5f5] bg-[#fcfbfe]"
+                          }`}
+                      />
+                    </div>
                   </div>
 
                   <div className="flex flex-col gap-2">
@@ -624,11 +623,10 @@ export default function HomePage() {
                       <button
                         type="button"
                         onClick={() => setServiceDropdownOpen((prev) => !prev)}
-                        className={`flex h-[52px] w-full items-center justify-between rounded-[16px] border px-4 text-[15px] transition ${
-                          selectedServices.length > 0 || serviceDropdownOpen
-                            ? "border-[#8a63ff] bg-[#faf7ff] text-[#2c2843] shadow-[0_0_0_3px_rgba(138,99,255,0.08)]"
-                            : "border-[#ece5f5] bg-[#fcfbfe] text-[#2c2843]"
-                        }`}
+                        className={`flex h-[52px] w-full items-center justify-between rounded-[16px] border px-4 text-[15px] transition ${selectedServices.length > 0 || serviceDropdownOpen
+                          ? "border-[#8a63ff] bg-[#faf7ff] text-[#2c2843] shadow-[0_0_0_3px_rgba(138,99,255,0.08)]"
+                          : "border-[#ece5f5] bg-[#fcfbfe] text-[#2c2843]"
+                          }`}
                       >
                         <span className="truncate">{selectedServiceLabel}</span>
                         <span className="ml-3 shrink-0 text-[#7a7297]">
@@ -660,19 +658,17 @@ export default function HomePage() {
                                   key={item}
                                   type="button"
                                   onClick={() => toggleService(item)}
-                                  className={`flex w-full items-center justify-between rounded-[14px] border px-3 py-3 text-left text-[14px] transition ${
-                                    active
-                                      ? "border-[#7b5cf6] bg-[#f5f0ff] text-[#4d33da]"
-                                      : "border-[#ece5f5] bg-[#fcfbfe] text-[#3e3858]"
-                                  }`}
+                                  className={`flex w-full items-center justify-between rounded-[14px] border px-3 py-3 text-left text-[14px] transition ${active
+                                    ? "border-[#7b5cf6] bg-[#f5f0ff] text-[#4d33da]"
+                                    : "border-[#ece5f5] bg-[#fcfbfe] text-[#3e3858]"
+                                    }`}
                                 >
                                   <span>{item}</span>
                                   <span
-                                    className={`flex h-5 w-5 items-center justify-center rounded-full text-[12px] ${
-                                      active
-                                        ? "bg-[#7b5cf6] text-white"
-                                        : "border border-[#d8cfee] text-transparent"
-                                    }`}
+                                    className={`flex h-5 w-5 items-center justify-center rounded-full text-[12px] ${active
+                                      ? "bg-[#7b5cf6] text-white"
+                                      : "border border-[#d8cfee] text-transparent"
+                                      }`}
                                   >
                                     ✓
                                   </span>
@@ -711,11 +707,10 @@ export default function HomePage() {
                     <select
                       value={region}
                       onChange={(e) => setRegion(e.target.value)}
-                      className={`h-[52px] w-full rounded-[16px] border px-4 text-[15px] text-[#2c2843] outline-none transition ${
-                        region
-                          ? "border-[#8a63ff] bg-[#faf7ff] shadow-[0_0_0_3px_rgba(138,99,255,0.08)]"
-                          : "border-[#ece5f5] bg-[#fcfbfe]"
-                      }`}
+                      className={`h-[52px] w-full rounded-[16px] border px-4 text-[15px] text-[#2c2843] outline-none transition ${region
+                        ? "border-[#8a63ff] bg-[#faf7ff] shadow-[0_0_0_3px_rgba(138,99,255,0.08)]"
+                        : "border-[#ece5f5] bg-[#fcfbfe]"
+                        }`}
                     >
                       <option value="">지역 선택</option>
                       {REGIONS.map((item) => (
@@ -734,11 +729,10 @@ export default function HomePage() {
                     <select
                       value={price}
                       onChange={(e) => setPrice(e.target.value)}
-                      className={`h-[52px] w-full rounded-[16px] border px-4 text-[15px] text-[#2c2843] outline-none transition ${
-                        price
-                          ? "border-[#8a63ff] bg-[#faf7ff] shadow-[0_0_0_3px_rgba(138,99,255,0.08)]"
-                          : "border-[#ece5f5] bg-[#fcfbfe]"
-                      }`}
+                      className={`h-[52px] w-full rounded-[16px] border px-4 text-[15px] text-[#2c2843] outline-none transition ${price
+                        ? "border-[#8a63ff] bg-[#faf7ff] shadow-[0_0_0_3px_rgba(138,99,255,0.08)]"
+                        : "border-[#ece5f5] bg-[#fcfbfe]"
+                        }`}
                     >
                       <option value="">예산 범위 선택</option>
                       {PRICES.map((item) => (
@@ -754,11 +748,10 @@ export default function HomePage() {
                   type="button"
                   onClick={handleSearch}
                   disabled={loading}
-                  className={`mt-4 h-[54px] w-full rounded-[16px] text-[16px] font-bold text-white transition ${
-                    loading
-                      ? "bg-[#a393cc]"
-                      : "bg-gradient-to-r from-[#7b5cf6] to-[#d75eb6]"
-                  }`}
+                  className={`mt-4 h-[54px] w-full rounded-[16px] text-[16px] font-bold text-white transition ${loading
+                    ? "bg-[#a393cc]"
+                    : "bg-gradient-to-r from-[#7b5cf6] to-[#d75eb6]"
+                    }`}
                 >
                   {loading ? "작가 검색 중..." : "작가 검색"}
                 </button>
@@ -868,9 +861,8 @@ export default function HomePage() {
             <div className="rounded-[24px] border border-[#e8e0f3] bg-[#f7f3fb] p-4 shadow-[0_10px_26px_rgba(80,60,120,0.05)]">
               <div
                 onClick={() => setRecentOpen((prev) => !prev)}
-                className={`mb-3 flex cursor-pointer items-center justify-between rounded-[16px] px-2 py-2 ${
-                  recentOpen ? "bg-[#f1e9ff]" : ""
-                }`}
+                className={`mb-3 flex cursor-pointer items-center justify-between rounded-[16px] px-2 py-2 ${recentOpen ? "bg-[#f1e9ff]" : ""
+                  }`}
               >
                 <div className="flex items-center gap-2">
                   <span className="text-[#6d46f6]">≡</span>
@@ -935,11 +927,10 @@ export default function HomePage() {
                 <button
                   type="button"
                   onClick={() => setFavoriteOpen((prev) => !prev)}
-                  className={`inline-flex h-10 items-center justify-center rounded-[14px] px-4 text-[13px] font-semibold ${
-                    favoriteOpen
-                      ? "bg-[#6d46f6] text-white"
-                      : "bg-[#f1eaff] text-[#6d46f6]"
-                  }`}
+                  className={`inline-flex h-10 items-center justify-center rounded-[14px] px-4 text-[13px] font-semibold ${favoriteOpen
+                    ? "bg-[#6d46f6] text-white"
+                    : "bg-[#f1eaff] text-[#6d46f6]"
+                    }`}
                 >
                   <span className="mr-2">❤</span>
                   찜한 작가 보기 ({favoriteArtists.length})
@@ -1039,11 +1030,10 @@ export default function HomePage() {
                           <button
                             type="button"
                             onClick={(event) => toggleFavorite(event, artist)}
-                            className={`absolute right-3 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full border backdrop-blur-sm ${
-                              favorite
-                                ? "border-[#ffbdd4] bg-[#ffedf5] text-[#ff5c9a]"
-                                : "border-white/70 bg-white/85 text-[#6a617f]"
-                            }`}
+                            className={`absolute right-3 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full border backdrop-blur-sm ${favorite
+                              ? "border-[#ffbdd4] bg-[#ffedf5] text-[#ff5c9a]"
+                              : "border-white/70 bg-white/85 text-[#6a617f]"
+                              }`}
                             aria-label={favorite ? "찜 해제" : "찜하기"}
                           >
                             {favorite ? "❤" : "♡"}
@@ -1121,11 +1111,10 @@ export default function HomePage() {
                                 window.open(primaryVideoLink, "_blank", "noopener,noreferrer");
                               }}
                               disabled={!primaryVideoLink}
-                              className={`h-10 rounded-[14px] text-[13px] font-semibold ${
-                                primaryVideoLink
-                                  ? "bg-[#6d46f6] text-white"
-                                  : "bg-[#ece8f6] text-[#9a93b1]"
-                              }`}
+                              className={`h-10 rounded-[14px] text-[13px] font-semibold ${primaryVideoLink
+                                ? "bg-[#6d46f6] text-white"
+                                : "bg-[#ece8f6] text-[#9a93b1]"
+                                }`}
                             >
                               {primaryVideoLink ? "영상 포트폴리오" : "준비중"}
                             </button>
@@ -1151,11 +1140,10 @@ export default function HomePage() {
                         <button
                           type="button"
                           onClick={(event) => toggleFavorite(event, artist)}
-                          className={`absolute right-3 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full border backdrop-blur-sm ${
-                            favorite
-                              ? "border-[#ffbdd4] bg-[#ffedf5] text-[#ff5c9a]"
-                              : "border-white/70 bg-white/85 text-[#6a617f]"
-                          }`}
+                          className={`absolute right-3 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full border backdrop-blur-sm ${favorite
+                            ? "border-[#ffbdd4] bg-[#ffedf5] text-[#ff5c9a]"
+                            : "border-white/70 bg-white/85 text-[#6a617f]"
+                            }`}
                           aria-label={favorite ? "찜 해제" : "찜하기"}
                         >
                           {favorite ? "❤" : "♡"}
@@ -1222,11 +1210,10 @@ export default function HomePage() {
                               );
                             }}
                             disabled={!artist.portfolio}
-                            className={`h-10 rounded-[14px] text-[13px] font-semibold ${
-                              artist.portfolio
-                                ? "bg-[#6d46f6] text-white"
-                                : "bg-[#ece8f6] text-[#9a93b1]"
-                            }`}
+                            className={`h-10 rounded-[14px] text-[13px] font-semibold ${artist.portfolio
+                              ? "bg-[#6d46f6] text-white"
+                              : "bg-[#ece8f6] text-[#9a93b1]"
+                              }`}
                           >
                             {artist.portfolio ? "포트폴리오" : "준비중"}
                           </button>
