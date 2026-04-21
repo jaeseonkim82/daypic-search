@@ -47,7 +47,7 @@ DROP POLICY IF EXISTS "users_select_public" ON users;
 CREATE TABLE IF NOT EXISTS artists (
   id TEXT PRIMARY KEY,
   artist_id TEXT,
-  user_id TEXT,
+  user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
   kakao_id TEXT,
   name TEXT NOT NULL,
   email TEXT,
@@ -100,7 +100,9 @@ DROP POLICY IF EXISTS "artists_select_public" ON artists;
 REVOKE SELECT ON artists FROM anon;
 
 -- PII(phone/email/kakao_id/user_id) 제외한 공개 뷰
-CREATE OR REPLACE VIEW artists_public AS
+-- security_invoker=on: 호출자 권한으로 실행 (기본 DEFINER는 service_role로 우회 위험)
+CREATE OR REPLACE VIEW artists_public
+  WITH (security_invoker = on) AS
   SELECT
     id, artist_id, name, service, region, price, artist_type,
     portfolio, image, portfolio_images, rating,

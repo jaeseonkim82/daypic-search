@@ -36,6 +36,8 @@ async function resolveArtistContext(request: NextRequest) {
     return { session, artistRowId: "" };
   }
 
+  // 토큰의 artistId는 JWT 만료 전까지 stale 가능(작가 삭제/id 변경 등).
+  // FK 위반 방지 차원에서 항상 현재 artists 테이블에서 확인한다.
   const artist = await findArtistRow(session.kakaoId);
   return {
     session,
