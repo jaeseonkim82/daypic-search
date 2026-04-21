@@ -51,6 +51,8 @@ export type ArtistRow = {
   video_thumb_3: string | null;
   video_thumb_4: string | null;
   video_style_tags: string[] | null;
+  created_at?: string;
+  updated_at?: string;
 };
 
 export type UserRow = {

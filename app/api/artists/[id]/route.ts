@@ -88,6 +88,9 @@ function normalizeArtist(row: ArtistRow) {
     video_thumb_4_attachments: toAttachmentArray(row.video_thumb_4 ?? ""),
 
     video_style_tags: row.video_style_tags ?? [],
+
+    // 낙관적 락(선택) 사용을 위한 버전 토큰
+    updated_at: row.updated_at ?? null,
   };
 }
 
@@ -127,9 +130,27 @@ export async function PATCH(
 
     const existing = auth.artist;
     const body = await req.json();
-    const updates: Partial<ArtistRow> = {};
     const has = (key: string) =>
       Object.prototype.hasOwnProperty.call(body, key);
+
+    // 낙관적 락(opt-in): 클라이언트가 expected_updated_at을 보내면,
+    // 서버 최신값과 비교해 불일치 시 409 반환. 없으면 기존 동작.
+    if (has("expected_updated_at")) {
+      const expected = String(body.expected_updated_at ?? "");
+      const current = (existing.updated_at ?? "").toString();
+      if (expected && current && expected !== current) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: "다른 기기에서 먼저 저장되어, 새로고침 후 다시 시도해줘.",
+            current_updated_at: current,
+          },
+          { status: 409 }
+        );
+      }
+    }
+
+    const updates: Partial<ArtistRow> = {};
 
     if (has("phone")) updates.phone = sanitizeString(body.phone);
     if (has("price")) updates.price = sanitizeString(body.price);
