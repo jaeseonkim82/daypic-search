@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { getAuthSession } from "@/lib/auth-helpers";
+import { serverError } from "@/lib/error-response";
 
 type RegisterArtistRequest = {
   companyName?: string;
@@ -208,30 +209,27 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       ok: true,
       message: "작가 정보가 등록되었습니다.",
-      record: {
+      artist: {
         id: data.id,
-        fields: {
-          artist_id: data.artist_id,
-          업체명: data.name,
-          이메일: data.email,
-          연락처: data.phone,
-          촬영서비스: data.service,
-          촬영지역: data.region,
-          촬영비용: data.price,
-          성향키워드: data.style_keywords,
-          포트폴리오: data.portfolio,
-          openchat_url: data.open_chat_url,
-          user_id: data.user_id,
-          kakao_id: data.kakao_id,
-        },
+        artist_id: data.artist_id,
+        name: data.name,
+        email: data.email,
+        phone: data.phone,
+        service: data.service,
+        region: data.region,
+        price: data.price,
+        style_keywords: data.style_keywords,
+        portfolio: data.portfolio,
+        open_chat_url: data.open_chat_url,
+        user_id: data.user_id,
+        kakao_id: data.kakao_id,
       },
     });
   } catch (error) {
-    console.error("작가 등록 API 오류:", error);
-
-    return NextResponse.json(
-      { error: "작가 정보 등록 중 서버 오류가 발생했습니다." },
-      { status: 500 }
+    return serverError(
+      "POST /api/artists/register",
+      error,
+      "작가 정보 등록 중 서버 오류가 발생했습니다."
     );
   }
 }
