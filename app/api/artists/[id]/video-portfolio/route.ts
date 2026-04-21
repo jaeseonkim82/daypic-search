@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireArtistOwner } from "@/lib/auth-helpers";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { serverError } from "@/lib/error-response";
 
 function sanitizeString(value: unknown) {
   if (typeof value !== "string") return "";
@@ -64,24 +65,24 @@ export async function PATCH(
       .single();
 
     if (error) {
-      console.error("video-portfolio update failed:", error.message);
-      return NextResponse.json(
-        { success: false, error: error.message },
-        { status: 500 }
+      return serverError(
+        "PATCH video-portfolio",
+        error,
+        "영상 포트폴리오 저장에 실패했어."
       );
     }
 
     return NextResponse.json({
+      ok: true,
       success: true,
       message: "영상 포트폴리오가 저장되었어.",
       recordId: data.id,
     });
   } catch (error) {
-    console.error("video-portfolio PATCH error:", error);
-
-    return NextResponse.json(
-      { success: false, error: "서버 오류 발생" },
-      { status: 500 }
+    return serverError(
+      "PATCH video-portfolio",
+      error,
+      "영상 포트폴리오 저장 중 오류가 발생했어."
     );
   }
 }

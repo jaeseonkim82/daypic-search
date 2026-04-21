@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { getAuthSession } from "@/lib/auth-helpers";
+import { serverError } from "@/lib/error-response";
 
 export async function GET(request: NextRequest) {
   try {
@@ -30,21 +31,22 @@ export async function GET(request: NextRequest) {
       .maybeSingle();
 
     if (error) {
-      console.error("Supabase by-email 조회 실패:", error.message);
-      return NextResponse.json(
-        { error: "작가 이메일 조회에 실패했어요.", detail: error.message },
-        { status: 500 }
+      return serverError(
+        "GET by-email",
+        error,
+        "작가 이메일 조회에 실패했어요."
       );
     }
 
     if (!data) {
       return NextResponse.json(
-        { error: "해당 이메일의 작가를 찾지 못했어요." },
+        { ok: false, error: "해당 이메일의 작가를 찾지 못했어요." },
         { status: 404 }
       );
     }
 
     return NextResponse.json({
+      ok: true,
       success: true,
       artist: {
         id: data.id,
@@ -53,11 +55,10 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("Artist by-email error:", error);
-
-    return NextResponse.json(
-      { error: "작가 이메일 조회 중 오류가 발생했어요." },
-      { status: 500 }
+    return serverError(
+      "GET by-email",
+      error,
+      "작가 이메일 조회 중 오류가 발생했어요."
     );
   }
 }

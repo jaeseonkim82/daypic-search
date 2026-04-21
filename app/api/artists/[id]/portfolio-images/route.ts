@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireArtistOwner } from "@/lib/auth-helpers";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { serverError } from "@/lib/error-response";
 
 export async function PATCH(
   request: NextRequest,
@@ -61,28 +62,25 @@ export async function PATCH(
       .single();
 
     if (error) {
-      console.error("Supabase portfolio_images update failed:", error.message);
-      return NextResponse.json(
-        {
-          error: "포트폴리오 이미지 업데이트에 실패했어.",
-          detail: error.message,
-        },
-        { status: 500 }
+      return serverError(
+        "PATCH portfolio-images",
+        error,
+        "포트폴리오 이미지 업데이트에 실패했어."
       );
     }
 
     return NextResponse.json({
+      ok: true,
       success: true,
       record: { id: data.id, fields: { portfolio_images: cleanedUrls } },
       savedCount: cleanedUrls.length,
       imageUrls: cleanedUrls,
     });
   } catch (error) {
-    console.error("Portfolio images update error:", error);
-
-    return NextResponse.json(
-      { error: "포트폴리오 이미지 저장 중 오류가 발생했어." },
-      { status: 500 }
+    return serverError(
+      "PATCH portfolio-images",
+      error,
+      "포트폴리오 이미지 저장 중 오류가 발생했어."
     );
   }
 }

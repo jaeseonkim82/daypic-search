@@ -60,6 +60,7 @@ function artistRowToResponse(row: ArtistRow): Artist {
     portfolio: row.portfolio ?? "",
     image: row.image ?? "",
     rating: row.rating ?? 4.8,
+    // @deprecated 클라이언트가 style_keywords로 전환하면 이 별칭 제거
     keywords: row.style_keywords ?? [],
     openchat_url: row.open_chat_url ?? "",
     portfolio_images: row.portfolio_images ?? [],

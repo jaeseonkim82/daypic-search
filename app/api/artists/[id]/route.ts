@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin, ArtistRow } from "@/lib/supabase";
 import { findArtistRow } from "@/lib/artist-lookup";
 import { requireArtistOwner } from "@/lib/auth-helpers";
+import { serverError } from "@/lib/error-response";
 
 function sanitizeString(value: unknown) {
   if (typeof value !== "string") return "";
@@ -52,7 +53,9 @@ function normalizeArtist(row: ArtistRow) {
     price: row.price ?? "",
 
     style_keywords: styleKeywords,
+    // @deprecated 하위 호환용 별칭. 클라이언트 전환 후 제거 예정.
     keywords: styleKeywords,
+    // @deprecated Airtable 시절 한국어 키 호환. 클라이언트 전환 후 제거.
     성향키워드: styleKeywords,
 
     portfolio: row.portfolio ?? "",
@@ -105,16 +108,10 @@ export async function GET(
 
     return NextResponse.json(normalizeArtist(row));
   } catch (error) {
-    console.error("GET /api/artists/[id] error:", error);
-
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "작가 정보를 불러오는 중 오류가 발생했어.",
-      },
-      { status: 500 }
+    return serverError(
+      "GET /api/artists/[id]",
+      error,
+      "작가 정보를 불러오는 중 오류가 발생했어."
     );
   }
 }
@@ -181,7 +178,11 @@ export async function PATCH(
       .single();
 
     if (error) {
-      throw new Error(`작가 정보 수정 실패: ${error.message}`);
+      return serverError(
+        "PATCH /api/artists/[id]",
+        error,
+        "작가정보 저장에 실패했어요."
+      );
     }
 
     return NextResponse.json({
@@ -190,16 +191,10 @@ export async function PATCH(
       artist: normalizeArtist(data as ArtistRow),
     });
   } catch (error) {
-    console.error("PATCH /api/artists/[id] error:", error);
-
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "작가정보 저장 중 오류가 발생했어.",
-      },
-      { status: 500 }
+    return serverError(
+      "PATCH /api/artists/[id]",
+      error,
+      "작가정보 저장 중 오류가 발생했어."
     );
   }
 }

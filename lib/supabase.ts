@@ -1,28 +1,6 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
-let cachedServerClient: SupabaseClient | null = null;
 let cachedAdminClient: SupabaseClient | null = null;
-
-export function getSupabaseServer(): SupabaseClient {
-  if (cachedServerClient) return cachedServerClient;
-
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const publicKey =
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-
-  if (!url || !publicKey) {
-    throw new Error(
-      "Supabase 환경변수가 설정되지 않았어 (NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY 또는 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY)"
-    );
-  }
-
-  cachedServerClient = createClient(url, publicKey, {
-    auth: { persistSession: false },
-  });
-
-  return cachedServerClient;
-}
 
 export function getSupabaseAdmin(): SupabaseClient {
   if (cachedAdminClient) return cachedAdminClient;
