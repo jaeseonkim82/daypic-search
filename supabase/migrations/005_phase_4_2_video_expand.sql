@@ -9,6 +9,28 @@
 -- Contract 단계(구 컬럼 DROP)는 클라이언트까지 관계 테이블로 전환한 뒤 별도 마이그레이션.
 
 -- ============================================================
+-- 0. set_updated_at() 함수 보장 (001이 누락됐을 경우 대비, 멱등)
+-- ============================================================
+CREATE OR REPLACE FUNCTION set_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- artists / users 트리거도 혹시 누락되었으면 함께 복구
+DROP TRIGGER IF EXISTS trg_artists_set_updated_at ON artists;
+CREATE TRIGGER trg_artists_set_updated_at
+  BEFORE UPDATE ON artists
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+DROP TRIGGER IF EXISTS trg_users_set_updated_at ON users;
+CREATE TRIGGER trg_users_set_updated_at
+  BEFORE UPDATE ON users
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+-- ============================================================
 -- 1. 관계 테이블
 -- ============================================================
 CREATE TABLE IF NOT EXISTS video_portfolio_items (
