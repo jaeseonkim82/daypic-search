@@ -23,14 +23,16 @@ type ArtistDetailResponse = {
 };
 
 type PortfolioSaveResponse = {
-  success?: boolean;
+  ok?: boolean;
+  /** @deprecated use `ok` */ success?: boolean;
   savedCount?: number;
   imageUrls?: string[];
   error?: string;
 };
 
 type RepresentativeImageSaveResponse = {
-  success?: boolean;
+  ok?: boolean;
+  /** @deprecated use `ok` */ success?: boolean;
   imageUrl?: string;
   error?: string;
 };
@@ -275,7 +277,7 @@ function ArtistUploadPageInner() {
 
     const saveData: PortfolioSaveResponse = await saveRes.json();
 
-    if (!saveRes.ok || !saveData.success) {
+    if (!saveRes.ok || !(saveData.ok ?? saveData.success)) {
       throw new Error(saveData.error || "포트폴리오 저장에 실패했습니다.");
     }
 
@@ -299,7 +301,7 @@ function ArtistUploadPageInner() {
 
     const data: RepresentativeImageSaveResponse = await res.json();
 
-    if (!res.ok || !data.success) {
+    if (!res.ok || !(data.ok ?? data.success)) {
       throw new Error(data.error || "대표이미지 저장에 실패했습니다.");
     }
 
