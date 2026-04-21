@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { randomBytes } from "crypto";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { getAuthSession } from "@/lib/auth-helpers";
 import { findArtistRow } from "@/lib/artist-lookup";
@@ -25,7 +26,7 @@ function formatDateToYMD(value: string): string {
 }
 
 function makeClosedRecordId() {
-  return `rec${Math.random().toString(36).slice(2, 16)}`;
+  return `rec${randomBytes(12).toString("base64url").slice(0, 14)}`;
 }
 
 async function resolveArtistContext(request: NextRequest) {
@@ -207,17 +208,16 @@ export async function DELETE(request: NextRequest) {
       throw new Error(`Supabase 삭제 실패: ${error.message}`);
     }
 
-    if (!deleted || deleted.length === 0) {
-      return NextResponse.json(
-        { ok: false, message: "해제할 촬영 불가 날짜를 찾지 못했어." },
-        { status: 404 }
-      );
-    }
+    // 이미 삭제된 경우도 idempotent 성공으로 처리 (다른 기기/탭 race)
+    const alreadyDeleted = !deleted || deleted.length === 0;
 
     return NextResponse.json({
       ok: true,
-      message: "촬영 불가 날짜가 해제되었어.",
+      message: alreadyDeleted
+        ? "촬영 불가 날짜가 이미 해제되어 있었어."
+        : "촬영 불가 날짜가 해제되었어.",
       date,
+      already_deleted: alreadyDeleted,
     });
   } catch (error) {
     console.error("DELETE /api/artist-closed error:", error);

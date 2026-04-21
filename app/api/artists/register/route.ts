@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { randomBytes } from "crypto";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { getAuthSession } from "@/lib/auth-helpers";
 
 type RegisterArtistRequest = {
   companyName?: string;
@@ -11,8 +13,6 @@ type RegisterArtistRequest = {
   styleKeywords?: string[];
   portfolioUrl?: string;
   openchatUrl?: string;
-  userId?: string;
-  kakaoId?: string;
 };
 
 function isValidUrl(value: string) {
@@ -24,16 +24,24 @@ function isValidUrl(value: string) {
   }
 }
 
-function makeArtistId() {
-  return `artist_${Math.random().toString(36).slice(2, 14)}`;
+function makeArtistCode() {
+  return `artist_${randomBytes(9).toString("base64url").slice(0, 12)}`;
 }
 
 function makeRecordId() {
-  return `rec${Math.random().toString(36).slice(2, 16)}`;
+  return `rec${randomBytes(12).toString("base64url").slice(0, 14)}`;
 }
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await getAuthSession(request);
+    if (!session.kakaoId) {
+      return NextResponse.json(
+        { error: "로그인이 필요해요." },
+        { status: 401 }
+      );
+    }
+
     const body = (await request.json()) as RegisterArtistRequest;
 
     const companyName = body.companyName?.trim() || "";
@@ -47,8 +55,10 @@ export async function POST(request: NextRequest) {
       : [];
     const portfolioUrl = body.portfolioUrl?.trim() || "";
     const openchatUrl = body.openchatUrl?.trim() || "";
-    const userId = body.userId?.trim() || "";
-    const kakaoId = body.kakaoId?.trim() || "";
+
+    // 식별자는 body가 아닌 세션에서만 (계정 사칭 방지)
+    const kakaoId = session.kakaoId;
+    const userId = session.userId || `user_${kakaoId}`;
 
     if (!companyName) {
       return NextResponse.json(
@@ -116,44 +126,38 @@ export async function POST(request: NextRequest) {
     const supabase = getSupabaseAdmin();
     const normalizedEmail = email.toLowerCase();
 
-    if (kakaoId) {
-      const { data: existing } = await supabase
-        .from("artists")
-        .select("id")
-        .eq("kakao_id", kakaoId)
-        .maybeSingle();
+    const id = makeRecordId();
+    const artistCode = makeArtistCode();
 
-      if (existing) {
-        return NextResponse.json(
-          { error: "이미 등록된 카카오 계정입니다." },
-          { status: 409 }
-        );
-      }
-    }
+    // users는 항상 세션 사용자 기준으로 먼저 보장 (FK 대비)
+    const { error: userError } = await supabase
+      .from("users")
+      .upsert(
+        {
+          id: userId,
+          kakao_id: kakaoId,
+          email: normalizedEmail,
+          name: companyName,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "id" }
+      );
 
-    const { data: emailDup } = await supabase
-      .from("artists")
-      .select("id")
-      .eq("email", normalizedEmail)
-      .maybeSingle();
-
-    if (emailDup) {
+    if (userError) {
+      console.error("Supabase user upsert 오류:", userError);
       return NextResponse.json(
-        { error: "이미 등록된 이메일입니다." },
-        { status: 409 }
+        { error: "사용자 정보 저장 실패" },
+        { status: 500 }
       );
     }
-
-    const id = makeRecordId();
-    const artistId = makeArtistId();
 
     const { data, error } = await supabase
       .from("artists")
       .insert({
         id,
-        artist_id: artistId,
-        user_id: userId || null,
-        kakao_id: kakaoId || null,
+        artist_id: artistCode,
+        user_id: userId,
+        kakao_id: kakaoId,
         name: companyName,
         email: normalizedEmail,
         phone,
@@ -170,25 +174,35 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       console.error("Supabase 작가 등록 오류:", error);
+      // UNIQUE 위반(kakao_id/email/artist_id)은 409로 안내
+      if (error.code === "23505") {
+        const detail = error.message.toLowerCase();
+        if (detail.includes("kakao_id")) {
+          return NextResponse.json(
+            { error: "이미 등록된 카카오 계정입니다." },
+            { status: 409 }
+          );
+        }
+        if (detail.includes("email")) {
+          return NextResponse.json(
+            { error: "이미 등록된 이메일입니다." },
+            { status: 409 }
+          );
+        }
+        return NextResponse.json(
+          { error: "중복된 작가 정보가 있어요." },
+          { status: 409 }
+        );
+      }
       return NextResponse.json(
-        { error: `작가 정보 저장 실패: ${error.message}` },
+        {
+          error:
+            process.env.NODE_ENV === "production"
+              ? "작가 정보 저장에 실패했어요."
+              : `작가 정보 저장 실패: ${error.message}`,
+        },
         { status: 500 }
       );
-    }
-
-    if (userId) {
-      await supabase
-        .from("users")
-        .upsert(
-          {
-            id: userId,
-            kakao_id: kakaoId || null,
-            email: normalizedEmail,
-            name: companyName,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "id" }
-        );
     }
 
     return NextResponse.json({

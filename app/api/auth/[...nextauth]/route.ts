@@ -95,6 +95,7 @@ const handler = NextAuth({
         userId?: string;
         artistId?: string;
         kakaoId?: string;
+        dbError?: boolean;
       };
 
       if (account?.provider === "kakao" && account.providerAccountId) {
@@ -110,6 +111,10 @@ const handler = NextAuth({
 
         if (userId) {
           customToken.userId = userId;
+          customToken.dbError = false;
+        } else {
+          // DB 장애 시 클라이언트에 표시해서 작가 가입 유도 등 오동작 방지
+          customToken.dbError = true;
         }
 
         const artistId = await findArtistIdByKakaoId(customToken.kakaoId);

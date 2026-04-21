@@ -96,7 +96,24 @@ CREATE TRIGGER trg_artists_set_updated_at
 
 ALTER TABLE artists ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "artists_select_public" ON artists;
-CREATE POLICY "artists_select_public" ON artists FOR SELECT USING (true);
+-- 원본 artists는 service_role만 접근. 민감 컬럼 제외된 artists_public 뷰로 공개.
+REVOKE SELECT ON artists FROM anon;
+
+-- PII(phone/email/kakao_id/user_id) 제외한 공개 뷰
+CREATE OR REPLACE VIEW artists_public AS
+  SELECT
+    id, artist_id, name, service, region, price, artist_type,
+    portfolio, image, portfolio_images, rating,
+    style_keywords, open_chat_url,
+    video_link_1, video_link_2, video_link_3, video_link_4,
+    video_thumbnail,
+    video_thumb_1, video_thumb_2, video_thumb_3, video_thumb_4,
+    video_style_tags,
+    created_at, updated_at
+  FROM artists;
+
+GRANT SELECT ON artists_public TO anon;
+GRANT SELECT ON artists_public TO authenticated;
 
 
 -- ============================================================
@@ -115,4 +132,5 @@ CREATE INDEX IF NOT EXISTS idx_closed_dates_date ON closed_dates (closed_date);
 
 ALTER TABLE closed_dates ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "closed_dates_select_public" ON closed_dates;
-CREATE POLICY "closed_dates_select_public" ON closed_dates FOR SELECT USING (true);
+-- closed_dates는 service_role만 접근 (작가 스케줄은 내부 API로만 공개)
+REVOKE SELECT ON closed_dates FROM anon;

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { getAuthSession } from "@/lib/auth-helpers";
+import { findArtistRow } from "@/lib/artist-lookup";
 
 const ALLOWED_FOLDERS = new Set([
   "daypic/artists/representative",
@@ -15,6 +16,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: "로그인이 필요해." },
         { status: 401 }
+      );
+    }
+
+    // 작가 본인만 업로드 서명 발급
+    const artist = await findArtistRow(session.kakaoId);
+    if (!artist) {
+      return NextResponse.json(
+        { error: "작가 등록 후 이용할 수 있어." },
+        { status: 403 }
       );
     }
 

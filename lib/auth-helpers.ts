@@ -71,15 +71,26 @@ export async function requireArtistOwner(
   }
 
   const ownerKakao = (artist.kakao_id ?? "").toString().trim();
-  if (!ownerKakao || ownerKakao !== session.kakaoId) {
-    return {
-      ok: false,
-      response: NextResponse.json(
-        { ok: false, error: "본인 작가 정보만 수정할 수 있어." },
-        { status: 403 }
-      ),
-    };
+  if (ownerKakao && ownerKakao === session.kakaoId) {
+    return { ok: true, artist, session };
   }
 
-  return { ok: true, artist, session };
+  // 레거시 fallback: kakao_id가 NULL인 구 레코드는 email 일치로 허용
+  // (Phase 5 RLS 전환 시 제거 예정)
+  const ownerEmail = (artist.email ?? "").toString().trim().toLowerCase();
+  const sessionEmail = session.email.trim().toLowerCase();
+  if (!ownerKakao && ownerEmail && sessionEmail && ownerEmail === sessionEmail) {
+    console.warn(
+      `[auth] artist ${artist.id} kakao_id NULL → email fallback for ${sessionEmail}`
+    );
+    return { ok: true, artist, session };
+  }
+
+  return {
+    ok: false,
+    response: NextResponse.json(
+      { ok: false, error: "본인 작가 정보만 수정할 수 있어." },
+      { status: 403 }
+    ),
+  };
 }
