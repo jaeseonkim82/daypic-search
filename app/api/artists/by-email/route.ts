@@ -1,60 +1,43 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getSupabaseAdmin } from "@/lib/supabase";
+import { getAuthSession } from "@/lib/auth-helpers";
 
 export async function GET(request: NextRequest) {
   try {
-    const email = request.nextUrl.searchParams.get("email");
+    const session = await getAuthSession(request);
+    if (!session.kakaoId) {
+      return NextResponse.json(
+        { error: "로그인이 필요해요." },
+        { status: 401 }
+      );
+    }
 
-    if (!email) {
+    const emailParam = request.nextUrl.searchParams.get("email");
+    if (!emailParam) {
       return NextResponse.json(
         { error: "email 파라미터가 필요해요." },
         { status: 400 }
       );
     }
 
-    const AIRTABLE_TOKEN = process.env.AIRTABLE_TOKEN;
-    const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
+    const email = emailParam.trim().toLowerCase();
 
-    if (!AIRTABLE_TOKEN || !AIRTABLE_BASE_ID) {
+    const supabase = getSupabaseAdmin();
+    const { data, error } = await supabase
+      .from("artists")
+      .select("id, email, name")
+      .eq("email", email)
+      .maybeSingle();
+
+    if (error) {
+      console.error("Supabase by-email 조회 실패:", error.message);
       return NextResponse.json(
-        { error: "환경변수가 설정되지 않았어요." },
+        { error: "작가 이메일 조회에 실패했어요.", detail: error.message },
         { status: 500 }
       );
     }
 
-    // artists 테이블의 실제 ID
-    const ARTISTS_TABLE_ID = "tbl8u1fnfNfTzMhyI";
-
-    const formula = `{이메일}="${email.replace(/"/g, '\\"')}"`;
-
-    const airtableUrl = new URL(
-      `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${ARTISTS_TABLE_ID}`
-    );
-    airtableUrl.searchParams.set("filterByFormula", formula);
-    airtableUrl.searchParams.set("maxRecords", "1");
-
-    const response = await fetch(airtableUrl.toString(), {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${AIRTABLE_TOKEN}`,
-      },
-    });
-
-    const result = await response.json();
-
-    if (!response.ok) {
-      console.error("Airtable by-email lookup failed:", result);
-      return NextResponse.json(
-        {
-          error: "작가 이메일 조회에 실패했어요.",
-          detail: result,
-        },
-        { status: response.status }
-      );
-    }
-
-    const record = result.records?.[0];
-
-    if (!record) {
+    if (!data) {
       return NextResponse.json(
         { error: "해당 이메일의 작가를 찾지 못했어요." },
         { status: 404 }
@@ -64,9 +47,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       artist: {
-        id: record.id,
-        email: record.fields?.이메일 ?? "",
-        name: record.fields?.업체명 ?? "",
+        id: data.id,
+        email: data.email ?? "",
+        name: data.name ?? "",
       },
     });
   } catch (error) {

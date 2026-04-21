@@ -1,16 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getToken } from "next-auth/jwt";
-
-type AirtableRecord = {
-  id: string;
-  fields: Record<string, any>;
-};
-
-const AIRTABLE_TOKEN = process.env.AIRTABLE_TOKEN;
-const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
-const CLOSED_DATES_TABLE =
-  process.env.AIRTABLE_CLOSED_DATES_TABLE || "closed_dates";
-const ARTISTS_TABLE = process.env.AIRTABLE_ARTISTS_TABLE || "artists";
+import { getSupabaseAdmin } from "@/lib/supabase";
+import { getAuthSession } from "@/lib/auth-helpers";
+import { findArtistRow } from "@/lib/artist-lookup";
 
 function formatDateToYMD(value: string): string {
   if (!value) return "";
@@ -33,156 +24,55 @@ function formatDateToYMD(value: string): string {
   return `${yyyy}-${mm}-${dd}`;
 }
 
-function makeDateKey(artistId: string, date: string): string {
-  const safeDate = formatDateToYMD(date);
-  return `${artistId}_${safeDate}`;
+function makeClosedRecordId() {
+  return `rec${Math.random().toString(36).slice(2, 16)}`;
 }
 
-function getHeaders() {
-  if (!AIRTABLE_TOKEN) {
-    throw new Error("AIRTABLE_TOKEN이 설정되지 않았어.");
+async function resolveArtistContext(request: NextRequest) {
+  const session = await getAuthSession(request);
+
+  if (!session.kakaoId) {
+    return { session, artistRowId: "" };
   }
 
+  const artist = await findArtistRow(session.kakaoId);
   return {
-    Authorization: `Bearer ${AIRTABLE_TOKEN}`,
-    "Content-Type": "application/json",
+    session,
+    artistRowId: artist?.id ?? "",
   };
-}
-
-function getTableUrl() {
-  if (!AIRTABLE_BASE_ID) {
-    throw new Error("AIRTABLE_BASE_ID가 설정되지 않았어.");
-  }
-
-  return `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${encodeURIComponent(
-    CLOSED_DATES_TABLE
-  )}`;
-}
-
-function getArtistsTableUrl() {
-  if (!AIRTABLE_BASE_ID) {
-    throw new Error("AIRTABLE_BASE_ID가 설정되지 않았어.");
-  }
-
-  return `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${encodeURIComponent(
-    ARTISTS_TABLE
-  )}`;
-}
-
-async function findArtistByKakaoId(kakaoId: string): Promise<AirtableRecord | null> {
-  const formula = encodeURIComponent(`{kakao_id}="${kakaoId}"`);
-  const url = `${getArtistsTableUrl()}?filterByFormula=${formula}&maxRecords=1`;
-
-  const response = await fetch(url, {
-    method: "GET",
-    headers: getHeaders(),
-    cache: "no-store",
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`작가 조회 실패: ${response.status} ${text}`);
-  }
-
-  const data = await response.json();
-  return data.records?.[0] || null;
-}
-
-async function getSessionInfo(request: NextRequest) {
-  const token = (await getToken({
-    req: request,
-    secret: process.env.NEXTAUTH_SECRET,
-  })) as
-    | {
-        userId?: string;
-        artistId?: string;
-        kakaoId?: string;
-        email?: string;
-        name?: string;
-      }
-    | null;
-
-  const userId = typeof token?.userId === "string" ? token.userId : "";
-  const tokenArtistId = typeof token?.artistId === "string" ? token.artistId : "";
-  const kakaoId = typeof token?.kakaoId === "string" ? token.kakaoId : "";
-  const email = typeof token?.email === "string" ? token.email : "";
-
-  let artistId = tokenArtistId;
-
-  if (!artistId && kakaoId) {
-    const artistRecord = await findArtistByKakaoId(kakaoId);
-    artistId = artistRecord?.id ? String(artistRecord.id) : "";
-  }
-
-  return { token, userId, artistId, kakaoId, email };
-}
-
-async function fetchClosedDatesByArtistId(
-  artistId: string
-): Promise<AirtableRecord[]> {
-  const tableUrl = getTableUrl();
-
-  const formula = `{artist_id}="${artistId}"`;
-  let offset = "";
-  const results: AirtableRecord[] = [];
-
-  while (true) {
-    const url = new URL(tableUrl);
-    url.searchParams.set("filterByFormula", formula);
-    url.searchParams.set("sort[0][field]", "날짜");
-    url.searchParams.set("sort[0][direction]", "asc");
-
-    if (offset) {
-      url.searchParams.set("offset", offset);
-    }
-
-    const response = await fetch(url.toString(), {
-      method: "GET",
-      headers: getHeaders(),
-      cache: "no-store",
-    });
-
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`Airtable 조회 실패: ${response.status} ${text}`);
-    }
-
-    const data = await response.json();
-    results.push(...(data.records || []));
-
-    if (!data.offset) break;
-    offset = data.offset;
-  }
-
-  return results;
 }
 
 export async function GET(request: NextRequest) {
   try {
-    const { artistId } = await getSessionInfo(request);
+    const { artistRowId } = await resolveArtistContext(request);
 
-    if (!artistId) {
+    if (!artistRowId) {
       return NextResponse.json(
         { ok: false, message: "로그인된 작가 정보가 필요해." },
         { status: 401 }
       );
     }
 
-    const records = await fetchClosedDatesByArtistId(artistId);
+    const supabase = getSupabaseAdmin();
+    const { data, error } = await supabase
+      .from("closed_dates")
+      .select("id, artist_id, closed_date")
+      .eq("artist_id", artistRowId)
+      .order("closed_date", { ascending: true });
 
-    const dates = records
-      .map((record) => formatDateToYMD(String(record.fields["날짜"] || "")))
-      .filter(Boolean);
+    if (error) {
+      throw new Error(`Supabase 조회 실패: ${error.message}`);
+    }
+
+    const rows = data ?? [];
 
     return NextResponse.json({
       ok: true,
-      dates,
-      records: records.map((record) => ({
-        id: record.id,
-        date: formatDateToYMD(String(record.fields["날짜"] || "")),
-        artist_id: String(record.fields["artist_id"] || ""),
-        owner_user_id: String(record.fields["owner_user_id"] || ""),
-        date_key: String(record.fields["date_key"] || ""),
+      dates: rows.map((r) => r.closed_date).filter(Boolean),
+      records: rows.map((r) => ({
+        id: r.id,
+        date: r.closed_date,
+        artist_id: r.artist_id,
       })),
     });
   } catch (error) {
@@ -203,9 +93,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId, artistId, email } = await getSessionInfo(request);
+    const { artistRowId } = await resolveArtistContext(request);
 
-    if (!artistId) {
+    if (!artistRowId) {
       return NextResponse.json(
         { ok: false, message: "로그인된 작가 정보가 필요해." },
         { status: 401 }
@@ -222,29 +112,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const dateKey = makeDateKey(artistId, date);
+    const supabase = getSupabaseAdmin();
 
-    const formula = encodeURIComponent(
-      `AND({artist_id}="${artistId}", {날짜}="${date}")`
-    );
+    const { data: existing } = await supabase
+      .from("closed_dates")
+      .select("id")
+      .eq("artist_id", artistRowId)
+      .eq("closed_date", date)
+      .maybeSingle();
 
-    const url = `${getTableUrl()}?filterByFormula=${formula}&maxRecords=1`;
-
-    const res = await fetch(url, {
-      method: "GET",
-      headers: getHeaders(),
-      cache: "no-store",
-    });
-
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`중복 조회 실패: ${res.status} ${text}`);
-    }
-
-    const existingData = await res.json();
-    const alreadyExists = existingData.records?.length > 0;
-
-    if (alreadyExists) {
+    if (existing) {
       return NextResponse.json({
         ok: true,
         duplicated: true,
@@ -253,31 +130,21 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const fields: Record<string, any> = {
-      날짜: date,
-      artist_id: artistId,
-    };
+    const recordId = makeClosedRecordId();
 
-    if (userId) {
-      fields.owner_user_id = userId;
+    const { data, error } = await supabase
+      .from("closed_dates")
+      .insert({
+        id: recordId,
+        artist_id: artistRowId,
+        closed_date: date,
+      })
+      .select("id, artist_id, closed_date")
+      .single();
+
+    if (error) {
+      throw new Error(`Supabase 등록 실패: ${error.message}`);
     }
-
-    if (email) {
-      fields["작가이메일"] = email;
-    }
-
-    const response = await fetch(getTableUrl(), {
-      method: "POST",
-      headers: getHeaders(),
-      body: JSON.stringify({ fields }),
-    });
-
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`Airtable 등록 실패: ${response.status} ${text}`);
-    }
-
-    const data = await response.json();
 
     return NextResponse.json({
       ok: true,
@@ -285,10 +152,8 @@ export async function POST(request: NextRequest) {
       message: "촬영 불가 날짜가 등록되었어.",
       record: {
         id: data.id,
-        date,
-        artist_id: artistId,
-        owner_user_id: userId || "",
-        date_key: String(data.fields?.date_key || dateKey || ""),
+        date: data.closed_date,
+        artist_id: data.artist_id,
       },
     });
   } catch (error) {
@@ -309,16 +174,18 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const { userId, artistId } = await getSessionInfo(request);
+    const { artistRowId } = await resolveArtistContext(request);
 
-    if (!artistId) {
+    if (!artistRowId) {
       return NextResponse.json(
         { ok: false, message: "로그인된 작가 정보가 필요해." },
         { status: 401 }
       );
     }
 
-    const date = formatDateToYMD(request.nextUrl.searchParams.get("date") || "");
+    const date = formatDateToYMD(
+      request.nextUrl.searchParams.get("date") || ""
+    );
 
     if (!date) {
       return NextResponse.json(
@@ -327,40 +194,24 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const existing = await fetchClosedDatesByArtistId(artistId);
+    const supabase = getSupabaseAdmin();
 
-    const matched = existing.find((record) => {
-      const recordDate = formatDateToYMD(String(record.fields["날짜"] || ""));
-      const recordArtistId = String(record.fields["artist_id"] || "");
-      const recordOwnerUserId = String(record.fields["owner_user_id"] || "");
+    const { data: deleted, error } = await supabase
+      .from("closed_dates")
+      .delete()
+      .eq("artist_id", artistRowId)
+      .eq("closed_date", date)
+      .select("id");
 
-      if (recordDate !== date || recordArtistId !== artistId) {
-        return false;
-      }
+    if (error) {
+      throw new Error(`Supabase 삭제 실패: ${error.message}`);
+    }
 
-      if (userId && recordOwnerUserId) {
-        return recordOwnerUserId === userId;
-      }
-
-      return true;
-    });
-
-    if (!matched) {
+    if (!deleted || deleted.length === 0) {
       return NextResponse.json(
         { ok: false, message: "해제할 촬영 불가 날짜를 찾지 못했어." },
         { status: 404 }
       );
-    }
-
-    const deleteUrl = `${getTableUrl()}/${matched.id}`;
-    const response = await fetch(deleteUrl, {
-      method: "DELETE",
-      headers: getHeaders(),
-    });
-
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`Airtable 삭제 실패: ${response.status} ${text}`);
     }
 
     return NextResponse.json({

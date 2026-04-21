@@ -1,61 +1,67 @@
 import NextAuth from "next-auth";
 import KakaoProvider from "next-auth/providers/kakao";
 import type { JWT } from "next-auth/jwt";
+import { getSupabaseAdmin } from "@/lib/supabase";
 
-type AirtableRecord = {
-  id: string;
-  createdTime?: string;
-  fields: Record<string, any>;
-};
+async function upsertUserByKakao(params: {
+  kakaoId: string;
+  email: string | null;
+  name: string | null;
+}): Promise<string | null> {
+  const supabase = getSupabaseAdmin();
+  const userId = `user_${params.kakaoId}`;
 
-async function findUserByEmail(email: string): Promise<AirtableRecord | null> {
-  const baseId = process.env.AIRTABLE_BASE_ID!;
-  const table = process.env.AIRTABLE_USERS_TABLE || "user";
-  const token = process.env.AIRTABLE_TOKEN!;
+  const { data: existing, error: selectError } = await supabase
+    .from("users")
+    .select("id")
+    .eq("kakao_id", params.kakaoId)
+    .maybeSingle();
 
-  const formula = encodeURIComponent(`{email}="${email}"`);
-  const url = `https://api.airtable.com/v0/${baseId}/${table}?filterByFormula=${formula}&maxRecords=1`;
-
-  const res = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-    cache: "no-store",
-  });
-
-  if (!res.ok) {
-    const text = await res.text();
-    console.error("Airtable user 조회 실패:", text);
+  if (selectError) {
+    console.error("Supabase users 조회 실패:", selectError.message);
     return null;
   }
 
-  const data = await res.json();
-  return data.records?.[0] || null;
+  const targetId = existing?.id ?? userId;
+
+  const { error: upsertError } = await supabase
+    .from("users")
+    .upsert(
+      {
+        id: targetId,
+        kakao_id: params.kakaoId,
+        email: params.email,
+        name: params.name,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "id" }
+    );
+
+  if (upsertError) {
+    console.error("Supabase users upsert 실패:", upsertError.message);
+    return null;
+  }
+
+  return targetId;
 }
 
-async function findArtistByUserId(userId: string): Promise<AirtableRecord | null> {
-  const baseId = process.env.AIRTABLE_BASE_ID!;
-  const table = process.env.AIRTABLE_ARTISTS_TABLE || "artists";
-  const token = process.env.AIRTABLE_TOKEN!;
+async function findArtistIdByKakaoId(
+  kakaoId: string
+): Promise<string | null> {
+  const supabase = getSupabaseAdmin();
 
-  const formula = encodeURIComponent(`{user_id}="${userId}"`);
-  const url = `https://api.airtable.com/v0/${baseId}/${table}?filterByFormula=${formula}&maxRecords=1`;
+  const { data, error } = await supabase
+    .from("artists")
+    .select("id")
+    .eq("kakao_id", kakaoId)
+    .maybeSingle();
 
-  const res = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-    cache: "no-store",
-  });
-
-  if (!res.ok) {
-    const text = await res.text();
-    console.error("Airtable artist 조회 실패:", text);
+  if (error) {
+    console.error("Supabase artist 조회 실패:", error.message);
     return null;
   }
 
-  const data = await res.json();
-  return data.records?.[0] || null;
+  return data?.id ?? null;
 }
 
 const handler = NextAuth({
@@ -63,76 +69,76 @@ const handler = NextAuth({
   session: {
     strategy: "jwt",
   },
-  debug: true,
+  debug: process.env.NODE_ENV !== "production",
   pages: {
     signIn: "/login",
     error: "/login",
   },
 
- providers: [
-  KakaoProvider({
-  clientId: process.env.KAKAO_CLIENT_ID!,
-  clientSecret: process.env.KAKAO_CLIENT_SECRET!,
-}),
-],
+  providers: [
+    KakaoProvider({
+      clientId: process.env.KAKAO_CLIENT_ID!,
+      clientSecret: process.env.KAKAO_CLIENT_SECRET!,
+    }),
+  ],
 
   callbacks: {
-  async signIn({ user, account, profile }) {
-  console.log("===== KAKAO SIGNIN DEBUG =====");
-  console.log("user:", JSON.stringify(user, null, 2));
-  console.log("account:", JSON.stringify(account, null, 2));
-  console.log("profile:", JSON.stringify(profile, null, 2));
-
-  if (!user.email) {
-    console.warn("카카오 이메일이 없어. 카카오 ID 기준으로 진행할게.");
-  }
-
-  return true;
-},
-
-  async jwt({ token, user, account }) {
-  const customToken = token as JWT & {
-    userId?: string;
-    artistId?: string;
-    kakaoId?: string;
-  };
-
-  if (account?.provider === "kakao" && account.providerAccountId) {
-    customToken.kakaoId = String(account.providerAccountId);
-  }
-
-  if (user?.email) {
-    const airtableUser = await findUserByEmail(user.email);
-
-    if (airtableUser?.fields?.user_id) {
-      customToken.userId = String(airtableUser.fields.user_id);
-
-      const artist = await findArtistByUserId(String(airtableUser.fields.user_id));
-
-      if (artist?.fields?.artist_id) {
-        customToken.artistId = String(artist.fields.artist_id);
+    async signIn({ user }) {
+      if (!user.email && process.env.NODE_ENV !== "production") {
+        console.warn("카카오 이메일이 없어. 카카오 ID 기준으로 진행할게.");
       }
-    }
-  }
+      return true;
+    },
 
-  return customToken;
-},
+    async jwt({ token, user, account }) {
+      const customToken = token as JWT & {
+        userId?: string;
+        artistId?: string;
+        kakaoId?: string;
+      };
 
-   async session({ session, token }) {
-  const customToken = token as JWT & {
-    userId?: string;
-    artistId?: string;
-    kakaoId?: string;
-  };
+      if (account?.provider === "kakao" && account.providerAccountId) {
+        customToken.kakaoId = String(account.providerAccountId);
+      }
 
-  if (session.user) {
-    (session.user as any).userId = customToken.userId ?? null;
-    (session.user as any).artistId = customToken.artistId ?? null;
-    (session.user as any).kakaoId = customToken.kakaoId ?? null;
-  }
+      if (customToken.kakaoId && user) {
+        const userId = await upsertUserByKakao({
+          kakaoId: customToken.kakaoId,
+          email: user.email ?? null,
+          name: user.name ?? null,
+        });
 
-  return session;
-},
+        if (userId) {
+          customToken.userId = userId;
+        }
+
+        const artistId = await findArtistIdByKakaoId(customToken.kakaoId);
+        if (artistId) {
+          customToken.artistId = artistId;
+        }
+      }
+
+      return customToken;
+    },
+
+    async session({ session, token }) {
+      const customToken = token as JWT & {
+        userId?: string;
+        artistId?: string;
+        kakaoId?: string;
+      };
+
+      if (session.user) {
+        (session.user as { userId?: string | null }).userId =
+          customToken.userId ?? null;
+        (session.user as { artistId?: string | null }).artistId =
+          customToken.artistId ?? null;
+        (session.user as { kakaoId?: string | null }).kakaoId =
+          customToken.kakaoId ?? null;
+      }
+
+      return session;
+    },
   },
 });
 

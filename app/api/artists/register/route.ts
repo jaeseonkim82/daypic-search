@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-
-const AIRTABLE_TOKEN = process.env.AIRTABLE_TOKEN;
-const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
-const ARTISTS_TABLE = process.env.AIRTABLE_ARTISTS_TABLE || "artists";
+import { getSupabaseAdmin } from "@/lib/supabase";
 
 type RegisterArtistRequest = {
   companyName?: string;
@@ -24,21 +21,19 @@ function isValidUrl(value: string) {
     return true;
   } catch {
     return false;
-    
   }
 }
+
 function makeArtistId() {
   return `artist_${Math.random().toString(36).slice(2, 14)}`;
 }
+
+function makeRecordId() {
+  return `rec${Math.random().toString(36).slice(2, 16)}`;
+}
+
 export async function POST(request: NextRequest) {
   try {
-    if (!AIRTABLE_TOKEN || !AIRTABLE_BASE_ID) {
-      return NextResponse.json(
-        { error: "Airtable 환경변수가 설정되지 않았습니다." },
-        { status: 500 }
-      );
-    }
-
     const body = (await request.json()) as RegisterArtistRequest;
 
     const companyName = body.companyName?.trim() || "";
@@ -53,7 +48,7 @@ export async function POST(request: NextRequest) {
     const portfolioUrl = body.portfolioUrl?.trim() || "";
     const openchatUrl = body.openchatUrl?.trim() || "";
     const userId = body.userId?.trim() || "";
-const kakaoId = body.kakaoId?.trim() || "";
+    const kakaoId = body.kakaoId?.trim() || "";
 
     if (!companyName) {
       return NextResponse.json(
@@ -118,57 +113,104 @@ const kakaoId = body.kakaoId?.trim() || "";
       );
     }
 
-    const airtableUrl = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${encodeURIComponent(
-      ARTISTS_TABLE
-    )}`;
+    const supabase = getSupabaseAdmin();
+    const normalizedEmail = email.toLowerCase();
 
-    const airtableResponse = await fetch(airtableUrl, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${AIRTABLE_TOKEN}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        records: [
-          {
-            fields: {
-  업체명: companyName,
-  이메일: email,
-  연락처: phone,
-  촬영서비스: services,
-  촬영지역: regions,
-  촬영비용: price,
-  성향키워드: styleKeywords,
-  포트폴리오: portfolioUrl,
-  openchat_url: openchatUrl,
-  검색노출: true,
-  user_id: userId || undefined,
-  kakao_id: kakaoId || undefined,
-},
-          },
-        ],
-      }),
-    });
+    if (kakaoId) {
+      const { data: existing } = await supabase
+        .from("artists")
+        .select("id")
+        .eq("kakao_id", kakaoId)
+        .maybeSingle();
 
-    const airtableResult = await airtableResponse.json();
+      if (existing) {
+        return NextResponse.json(
+          { error: "이미 등록된 카카오 계정입니다." },
+          { status: 409 }
+        );
+      }
+    }
 
-    if (!airtableResponse.ok) {
-      console.error("Airtable 등록 오류:", airtableResult);
+    const { data: emailDup } = await supabase
+      .from("artists")
+      .select("id")
+      .eq("email", normalizedEmail)
+      .maybeSingle();
 
+    if (emailDup) {
       return NextResponse.json(
-        {
-          error:
-            airtableResult?.error?.message ||
-            "Airtable에 작가 정보를 저장하지 못했습니다.",
-        },
+        { error: "이미 등록된 이메일입니다." },
+        { status: 409 }
+      );
+    }
+
+    const id = makeRecordId();
+    const artistId = makeArtistId();
+
+    const { data, error } = await supabase
+      .from("artists")
+      .insert({
+        id,
+        artist_id: artistId,
+        user_id: userId || null,
+        kakao_id: kakaoId || null,
+        name: companyName,
+        email: normalizedEmail,
+        phone,
+        service: services,
+        region: regions,
+        price,
+        style_keywords: styleKeywords,
+        portfolio: portfolioUrl,
+        open_chat_url: openchatUrl,
+        rating: 4.8,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Supabase 작가 등록 오류:", error);
+      return NextResponse.json(
+        { error: `작가 정보 저장 실패: ${error.message}` },
         { status: 500 }
       );
+    }
+
+    if (userId) {
+      await supabase
+        .from("users")
+        .upsert(
+          {
+            id: userId,
+            kakao_id: kakaoId || null,
+            email: normalizedEmail,
+            name: companyName,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "id" }
+        );
     }
 
     return NextResponse.json({
       ok: true,
       message: "작가 정보가 등록되었습니다.",
-      record: airtableResult?.records?.[0] || null,
+      record: {
+        id: data.id,
+        fields: {
+          artist_id: data.artist_id,
+          업체명: data.name,
+          이메일: data.email,
+          연락처: data.phone,
+          촬영서비스: data.service,
+          촬영지역: data.region,
+          촬영비용: data.price,
+          성향키워드: data.style_keywords,
+          포트폴리오: data.portfolio,
+          openchat_url: data.open_chat_url,
+          user_id: data.user_id,
+          kakao_id: data.kakao_id,
+        },
+      },
     });
   } catch (error) {
     console.error("작가 등록 API 오류:", error);
