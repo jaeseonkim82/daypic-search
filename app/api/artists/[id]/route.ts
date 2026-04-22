@@ -24,14 +24,59 @@ function sanitizeStringArray(value: unknown) {
   return [];
 }
 
-function normalizeArtist(row: ArtistRow) {
+type VideoItem = {
+  position: number;
+  link: string;
+  thumb: string;
+  style_tags: string[];
+};
+
+async function fetchVideoPortfolioItems(artistId: string): Promise<VideoItem[]> {
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("video_portfolio_items")
+    .select("position, link, thumb, style_tags")
+    .eq("artist_id", artistId)
+    .order("position", { ascending: true });
+
+  if (error) {
+    console.warn(
+      "video_portfolio_items 조회 실패 (fallback to legacy columns):",
+      error.message
+    );
+    return [];
+  }
+
+  return (data ?? []).map((item) => ({
+    position: item.position,
+    link: item.link,
+    thumb: item.thumb ?? "",
+    style_tags: item.style_tags ?? [],
+  }));
+}
+
+function normalizeArtist(row: ArtistRow, items: VideoItem[] = []) {
   const styleKeywords = row.style_keywords ?? [];
-  const videoLinks = [
-    row.video_link_1 ?? "",
-    row.video_link_2 ?? "",
-    row.video_link_3 ?? "",
-    row.video_link_4 ?? "",
-  ].filter(Boolean);
+  const byPosition = new Map(items.map((item) => [item.position, item]));
+
+  // Phase 4.2: 관계 테이블이 source of truth. artists.video_* 는 fallback.
+  const link1 = byPosition.get(1)?.link ?? row.video_link_1 ?? "";
+  const link2 = byPosition.get(2)?.link ?? row.video_link_2 ?? "";
+  const link3 = byPosition.get(3)?.link ?? row.video_link_3 ?? "";
+  const link4 = byPosition.get(4)?.link ?? row.video_link_4 ?? "";
+  const thumb1 = byPosition.get(1)?.thumb ?? row.video_thumb_1 ?? "";
+  const thumb2 = byPosition.get(2)?.thumb ?? row.video_thumb_2 ?? "";
+  const thumb3 = byPosition.get(3)?.thumb ?? row.video_thumb_3 ?? "";
+  const thumb4 = byPosition.get(4)?.thumb ?? row.video_thumb_4 ?? "";
+
+  // style_tags: items 중 아무 position의 style_tags (전부 동일한 전역 태그 구조)
+  // 없으면 artists.video_style_tags 폴백
+  const videoStyleTags =
+    items.find((item) => item.style_tags.length > 0)?.style_tags ??
+    row.video_style_tags ??
+    [];
+
+  const videoLinks = [link1, link2, link3, link4].filter(Boolean);
 
   return {
     id: row.id,
@@ -63,48 +108,27 @@ function normalizeArtist(row: ArtistRow) {
     image: row.image ?? "",
     rating: typeof row.rating === "number" ? row.rating : null,
 
-    video_link_1: row.video_link_1 ?? "",
-    video_link_2: row.video_link_2 ?? "",
-    video_link_3: row.video_link_3 ?? "",
-    video_link_4: row.video_link_4 ?? "",
+    video_link_1: link1,
+    video_link_2: link2,
+    video_link_3: link3,
+    video_link_4: link4,
 
     video_links: videoLinks,
 
-    video_thumbnail: row.video_thumbnail ?? "",
-    video_thumb_1: row.video_thumb_1 ?? "",
-    video_thumb_2: row.video_thumb_2 ?? "",
-    video_thumb_3: row.video_thumb_3 ?? "",
-    video_thumb_4: row.video_thumb_4 ?? "",
+    video_thumbnail: row.video_thumbnail ?? thumb1,
+    video_thumb_1: thumb1,
+    video_thumb_2: thumb2,
+    video_thumb_3: thumb3,
+    video_thumb_4: thumb4,
 
-    video_style_tags: row.video_style_tags ?? [],
+    video_style_tags: videoStyleTags,
+
+    // Phase 4.2 신규: 관계 테이블 원형
+    video_portfolio_items: items,
 
     // 낙관적 락(선택) 사용을 위한 버전 토큰
     updated_at: row.updated_at ?? null,
   };
-}
-
-async function fetchVideoPortfolioItems(artistId: string) {
-  const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase
-    .from("video_portfolio_items")
-    .select("position, link, thumb, style_tags")
-    .eq("artist_id", artistId)
-    .order("position", { ascending: true });
-
-  if (error) {
-    console.warn(
-      "video_portfolio_items 조회 실패 (fallback to legacy columns):",
-      error.message
-    );
-    return [];
-  }
-
-  return (data ?? []).map((item) => ({
-    position: item.position,
-    link: item.link,
-    thumb: item.thumb ?? "",
-    style_tags: item.style_tags ?? [],
-  }));
 }
 
 export async function GET(
@@ -123,12 +147,7 @@ export async function GET(
     }
 
     const videoItems = await fetchVideoPortfolioItems(row.id);
-
-    return NextResponse.json({
-      ...normalizeArtist(row),
-      // Phase 4.2 신규: 관계 테이블 기반 영상 포트폴리오. 기존 video_link_N 병행.
-      video_portfolio_items: videoItems,
-    });
+    return NextResponse.json(normalizeArtist(row, videoItems));
   } catch (error) {
     return serverError(
       "GET /api/artists/[id]",
@@ -207,10 +226,11 @@ export async function PATCH(
     }
 
     if (Object.keys(updates).length === 0) {
+      const items = await fetchVideoPortfolioItems(existing.id);
       return NextResponse.json({
         ok: true,
         message: "변경할 항목이 없어.",
-        artist: normalizeArtist(existing),
+        artist: normalizeArtist(existing, items),
       });
     }
 
@@ -230,10 +250,11 @@ export async function PATCH(
       );
     }
 
+    const items = await fetchVideoPortfolioItems(existing.id);
     return NextResponse.json({
       ok: true,
       message: "작가정보가 저장되었어.",
-      artist: normalizeArtist(data as ArtistRow),
+      artist: normalizeArtist(data as ArtistRow, items),
     });
   } catch (error) {
     return serverError(

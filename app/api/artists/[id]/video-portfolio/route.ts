@@ -72,6 +72,55 @@ export async function PATCH(
       );
     }
 
+    // Phase 4.2 Contract: 관계 테이블에도 명시적 upsert (트리거 경로와 병행).
+    // 추후 트리거 제거 + artists.video_* 컬럼 DROP 시 이 경로만 남음.
+    const slotInputs: Array<{ position: number; link: string; thumb: string }> = [
+      { position: 1, link: updates.video_link_1, thumb: updates.video_thumb_1 },
+      { position: 2, link: updates.video_link_2, thumb: updates.video_thumb_2 },
+      { position: 3, link: updates.video_link_3, thumb: updates.video_thumb_3 },
+      { position: 4, link: updates.video_link_4, thumb: updates.video_thumb_4 },
+    ];
+
+    const positionsToDelete = slotInputs
+      .filter((s) => !s.link)
+      .map((s) => s.position);
+
+    if (positionsToDelete.length > 0) {
+      const { error: delErr } = await supabase
+        .from("video_portfolio_items")
+        .delete()
+        .eq("artist_id", artistRow.id)
+        .in("position", positionsToDelete);
+      if (delErr) {
+        console.warn(
+          "video_portfolio_items delete 실패(무시):",
+          delErr.message
+        );
+      }
+    }
+
+    const rowsToUpsert = slotInputs
+      .filter((s) => !!s.link)
+      .map((s) => ({
+        artist_id: artistRow.id,
+        position: s.position,
+        link: s.link,
+        thumb: s.thumb || null,
+        style_tags: updates.video_style_tags,
+      }));
+
+    if (rowsToUpsert.length > 0) {
+      const { error: upErr } = await supabase
+        .from("video_portfolio_items")
+        .upsert(rowsToUpsert, { onConflict: "artist_id,position" });
+      if (upErr) {
+        console.warn(
+          "video_portfolio_items upsert 실패(무시):",
+          upErr.message
+        );
+      }
+    }
+
     return NextResponse.json({
       ok: true,
       success: true,

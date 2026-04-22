@@ -46,7 +46,18 @@ function shuffle<T>(array: T[]): T[] {
   return result;
 }
 
-function artistRowToResponse(row: ArtistRow): Artist {
+function artistRowToResponse(
+  row: ArtistRow,
+  items: VideoPortfolioItem[] = []
+): Artist {
+  // Phase 4.2: 관계 테이블이 source. artists.video_* 는 fallback.
+  const byPosition = new Map(items.map((item) => [item.position, item]));
+  const link1 = byPosition.get(1)?.link ?? row.video_link_1 ?? "";
+  const link2 = byPosition.get(2)?.link ?? row.video_link_2 ?? "";
+  const link3 = byPosition.get(3)?.link ?? row.video_link_3 ?? "";
+  const link4 = byPosition.get(4)?.link ?? row.video_link_4 ?? "";
+  const primaryThumb = byPosition.get(1)?.thumb ?? row.video_thumbnail ?? "";
+
   return {
     id: row.id,
     artist_id: row.artist_id ?? "",
@@ -62,12 +73,13 @@ function artistRowToResponse(row: ArtistRow): Artist {
     keywords: row.style_keywords ?? [],
     openchat_url: row.open_chat_url ?? "",
     portfolio_images: row.portfolio_images ?? [],
-    video_link_1: row.video_link_1 ?? "",
-    video_link_2: row.video_link_2 ?? "",
-    video_link_3: row.video_link_3 ?? "",
-    video_link_4: row.video_link_4 ?? "",
-    video_thumbnail: row.video_thumbnail ?? "",
+    video_link_1: link1,
+    video_link_2: link2,
+    video_link_3: link3,
+    video_link_4: link4,
+    video_thumbnail: primaryThumb,
     artist_type: row.artist_type ?? "",
+    video_portfolio_items: items,
   };
 }
 
@@ -158,10 +170,9 @@ async function searchArtists(
     }
   }
 
-  return rows.map((row) => ({
-    ...artistRowToResponse(row),
-    video_portfolio_items: itemsByArtist.get(row.id) ?? [],
-  }));
+  return rows.map((row) =>
+    artistRowToResponse(row, itemsByArtist.get(row.id) ?? [])
+  );
 }
 
 export async function GET(request: Request) {
