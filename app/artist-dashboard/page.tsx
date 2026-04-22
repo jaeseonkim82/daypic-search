@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import DbErrorBanner from "@/app/components/DbErrorBanner";
 
 type MeResponse = {
   ok: boolean;
@@ -107,11 +108,11 @@ if (!data.isArtist) {
 
 
       <div className="mx-auto max-w-[1440px] px-5 pb-16 pt-8 md:px-8 md:pt-10">
-        {dbError && (
-          <div className="mb-6 rounded-[20px] border border-[#f7c2c2] bg-[#fff5f5] px-6 py-4 text-sm text-[#a63838]">
-            데이터 서버 연결이 일시적으로 불안정해. 정보 수정·등록은 잠시 후 다시 시도해줘.
-          </div>
-        )}
+        <DbErrorBanner
+          show={dbError}
+          message="데이터 서버 연결이 일시적으로 불안정해. 정보 수정·등록은 잠시 후 다시 시도해줘."
+        />
+
         <section className="overflow-hidden rounded-[38px] border border-[#ece3f6] bg-[radial-gradient(circle_at_top_left,_rgba(144,110,255,0.14),_transparent_32%),radial-gradient(circle_at_bottom_right,_rgba(244,170,214,0.12),_transparent_24%),linear-gradient(135deg,_#ffffff_0%,_#fcf9ff_52%,_#f8f3fb_100%)] p-6 shadow-[0_18px_40px_rgba(78,58,130,0.08)] md:p-8 xl:p-10">
           <div className="grid gap-6 lg:grid-cols-[1.18fr_0.82fr]">
             <div>

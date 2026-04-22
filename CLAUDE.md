@@ -37,7 +37,8 @@ app/
 │   ├── me/                # 현재 유저/작가 프로필 (dbError 플래그 포함)
 │   ├── artists/           # CRUD (register/[id]/by-email/portfolio-images/representative-image/video-portfolio)
 │   ├── cloudinary/sign/   # 이미지 업로드 서명 (작가 세션 필수, folder allowlist)
-│   └── artist-closed/     # 작가 휴무일 (GET/POST/DELETE, idempotent)
+│   ├── artist-closed/     # 작가 휴무일 (GET/POST/DELETE, idempotent)
+│   └── health/            # GET: Supabase 연결/주요 테이블 ping (200/503)
 ├── components/
 │   └── Header.tsx
 └── [페이지들]/             # search, artists/[id], artist-dashboard, mypage, artist-profile/edit 등

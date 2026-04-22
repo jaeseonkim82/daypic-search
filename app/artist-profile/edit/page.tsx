@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
+import DbErrorBanner from "@/app/components/DbErrorBanner";
 
 const SERVICE_OPTIONS = [
   "본식스냅",
@@ -436,11 +437,11 @@ export default function ArtistProfileEditPage() {
   return (
     <main className="min-h-screen bg-[#fcfbff] px-6 py-10 md:py-16">
       <div className="mx-auto max-w-4xl">
-        {dbError && (
-          <div className="mb-6 rounded-[20px] border border-[#f7c2c2] bg-[#fff5f5] px-6 py-4 text-sm text-[#a63838]">
-            데이터 서버 연결이 일시적으로 불안정해. 저장은 잠시 후 다시 시도해줘.
-          </div>
-        )}
+        <DbErrorBanner
+          show={dbError}
+          message="데이터 서버 연결이 일시적으로 불안정해. 저장은 잠시 후 다시 시도해줘."
+        />
+
         <section className="rounded-[30px] border border-[#ece7ff] bg-white p-8 shadow-sm md:p-10">
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
