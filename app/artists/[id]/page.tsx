@@ -3,6 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 
+type VideoPortfolioItem = {
+  position: number;
+  link: string;
+  thumb: string;
+  style_tags: string[];
+};
+
 type ArtistDetail = {
   id: string;
   name: string;
@@ -28,6 +35,8 @@ type ArtistDetail = {
   video_thumb_2?: string;
   video_thumb_3?: string;
   video_thumb_4?: string;
+  /** Phase 4.2: 관계 테이블 기반. 비어있으면 video_link_N 폴백. */
+  video_portfolio_items?: VideoPortfolioItem[];
 };
 
 type SavedArtist = {
@@ -100,6 +109,13 @@ function normalizeExternalUrl(url: string) {
 
 function getVideoLinks(artist: ArtistDetail | null): string[] {
   if (!artist) return [];
+
+  // Phase 4.2: 관계 테이블 기반이 우선
+  if (artist.video_portfolio_items && artist.video_portfolio_items.length > 0) {
+    return artist.video_portfolio_items
+      .map((item) => (item.link || "").trim())
+      .filter(Boolean);
+  }
 
   const direct = normalizeArray(artist.video_links);
   if (direct.length > 0) return direct;
@@ -266,6 +282,18 @@ export default function ArtistDetailPage() {
 
   const videoThumbs = useMemo(() => {
     if (!artist) return [];
+
+    // Phase 4.2: 관계 테이블 기반 우선
+    if (
+      artist.video_portfolio_items &&
+      artist.video_portfolio_items.length > 0
+    ) {
+      const byPosition = new Map<number, string>();
+      for (const item of artist.video_portfolio_items) {
+        byPosition.set(item.position, (item.thumb || "").trim());
+      }
+      return [1, 2, 3, 4].map((p) => byPosition.get(p) ?? "");
+    }
 
     return [
       artist.video_thumb_1 || "",
