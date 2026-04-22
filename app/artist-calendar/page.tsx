@@ -17,6 +17,7 @@ type MeResponse = {
   kakaoId?: string | null;
   email: string | null;
   name: string | null;
+  dbError?: boolean;
 };
 
 function formatDate(date: Date): string {
@@ -98,6 +99,7 @@ export default function ArtistCalendarPage() {
   const [sessionReady, setSessionReady] = useState(false);
   const [sessionEmail, setSessionEmail] = useState("");
   const [sessionArtistId, setSessionArtistId] = useState("");
+  const [dbError, setDbError] = useState(false);
 
   const [currentMonth, setCurrentMonth] = useState(() => {
     const today = new Date();
@@ -134,6 +136,7 @@ export default function ArtistCalendarPage() {
 
         setSessionArtistId(data.artistId);
         setSessionEmail(data.email || "");
+        setDbError(data.dbError === true);
       } catch (err) {
         window.location.href = "/login";
         return;
@@ -308,6 +311,11 @@ export default function ArtistCalendarPage() {
 
         {!sessionReady && <div className="info">로그인 정보를 확인하는 중...</div>}
         {isLoading && <div className="info">등록된 날짜를 불러오는 중...</div>}
+        {dbError && (
+          <div className="alert error">
+            데이터 서버 연결이 일시적으로 불안정해. 잠시 후 다시 시도해줘.
+          </div>
+        )}
         {!!error && <div className="alert error">{error}</div>}
         {!!message && <div className="alert success">{message}</div>}
 
