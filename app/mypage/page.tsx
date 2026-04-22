@@ -11,6 +11,7 @@ type MeResponse = {
   kakaoId?: string;
   email?: string;
   name?: string;
+  dbError?: boolean;
 };
 
 export default function MyPage() {
@@ -110,6 +111,11 @@ export default function MyPage() {
   return (
     <main className="min-h-screen bg-[#fcfbff] px-6 py-10 md:py-16">
       <div className="mx-auto max-w-5xl">
+        {me.dbError && (
+          <div className="mb-6 rounded-[20px] border border-[#f7c2c2] bg-[#fff5f5] px-6 py-4 text-sm text-[#a63838]">
+            일시적으로 데이터 서버 연결에 문제가 있어. 작가 정보 등록/수정은 잠시 후 다시 시도해줘.
+          </div>
+        )}
         <section className="rounded-[30px] border border-[#ece7ff] bg-white p-8 shadow-sm md:p-10">
           <p className="text-sm font-semibold tracking-[0.08em] text-[#8a7eb0]">
             DAYPIC MY PAGE

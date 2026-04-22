@@ -13,6 +13,7 @@ type MeResponse = {
   isLoggedIn: boolean;
   isArtist: boolean;
   services?: string[];
+  dbError?: boolean;
 };
 
 const ADMIN_INQUIRY_URL = "https://pf.kakao.com/_YOUR_CHANNEL_LINK";
@@ -46,6 +47,7 @@ export default function ArtistDashboardPage() {
   const [artistId, setArtistId] = useState("");
   const [email, setEmail] = useState("");
   const [services, setServices] = useState<string[]>([]);
+  const [dbError, setDbError] = useState(false);
 
   useEffect(() => {
     async function loadSession() {
@@ -69,6 +71,7 @@ if (!data.isArtist) {
         setArtistId(data.artistId || "");
         setEmail(data.email || "");
         setServices(data.services || []);
+        setDbError(data.dbError === true);
       } catch (err) {
         window.location.href = "/api/auth/signin";
       } finally {
@@ -101,9 +104,14 @@ if (!data.isArtist) {
 
   return (
     <main className="min-h-screen bg-[#faf7fc] text-[#251f3c]">
-      
+
 
       <div className="mx-auto max-w-[1440px] px-5 pb-16 pt-8 md:px-8 md:pt-10">
+        {dbError && (
+          <div className="mb-6 rounded-[20px] border border-[#f7c2c2] bg-[#fff5f5] px-6 py-4 text-sm text-[#a63838]">
+            데이터 서버 연결이 일시적으로 불안정해. 정보 수정·등록은 잠시 후 다시 시도해줘.
+          </div>
+        )}
         <section className="overflow-hidden rounded-[38px] border border-[#ece3f6] bg-[radial-gradient(circle_at_top_left,_rgba(144,110,255,0.14),_transparent_32%),radial-gradient(circle_at_bottom_right,_rgba(244,170,214,0.12),_transparent_24%),linear-gradient(135deg,_#ffffff_0%,_#fcf9ff_52%,_#f8f3fb_100%)] p-6 shadow-[0_18px_40px_rgba(78,58,130,0.08)] md:p-8 xl:p-10">
           <div className="grid gap-6 lg:grid-cols-[1.18fr_0.82fr]">
             <div>
