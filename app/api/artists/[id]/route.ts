@@ -94,6 +94,30 @@ function normalizeArtist(row: ArtistRow) {
   };
 }
 
+async function fetchVideoPortfolioItems(artistId: string) {
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("video_portfolio_items")
+    .select("position, link, thumb, style_tags")
+    .eq("artist_id", artistId)
+    .order("position", { ascending: true });
+
+  if (error) {
+    console.warn(
+      "video_portfolio_items 조회 실패 (fallback to legacy columns):",
+      error.message
+    );
+    return [];
+  }
+
+  return (data ?? []).map((item) => ({
+    position: item.position,
+    link: item.link,
+    thumb: item.thumb ?? "",
+    style_tags: item.style_tags ?? [],
+  }));
+}
+
 export async function GET(
   _req: NextRequest,
   context: { params: Promise<{ id: string }> }
@@ -109,7 +133,13 @@ export async function GET(
       );
     }
 
-    return NextResponse.json(normalizeArtist(row));
+    const videoItems = await fetchVideoPortfolioItems(row.id);
+
+    return NextResponse.json({
+      ...normalizeArtist(row),
+      // Phase 4.2 신규: 관계 테이블 기반 영상 포트폴리오. 기존 video_link_N 병행.
+      video_portfolio_items: videoItems,
+    });
   } catch (error) {
     return serverError(
       "GET /api/artists/[id]",

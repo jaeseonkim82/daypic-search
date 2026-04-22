@@ -69,3 +69,13 @@ export type ClosedDateRow = {
   artist_id: string;
   closed_date: string;
 };
+
+export type VideoPortfolioItemRow = {
+  artist_id: string;
+  position: number;
+  link: string;
+  thumb: string | null;
+  style_tags: string[] | null;
+  created_at?: string;
+  updated_at?: string;
+};
