@@ -17,13 +17,19 @@ type Artist = {
   openchat_url?: string;
   portfolio_images?: string[] | string;
 
-  // ✅ 영상 관련 필드
+  // ✅ 영상 관련 필드 (legacy: video_link_N/video_thumbnail, 신규: video_portfolio_items)
   video_link_1?: string;
   video_link_2?: string;
   video_link_3?: string;
   video_link_4?: string;
   video_thumbnail?: string;
   artist_type?: string;
+  video_portfolio_items?: Array<{
+    position: number;
+    link: string;
+    thumb: string;
+    style_tags: string[];
+  }>;
 };
 
 type SavedArtist = {
@@ -205,10 +211,30 @@ function normalizeArtistFromApi(rawArtist: Record<string, any>): Artist {
     video_link_4: String(rawArtist.video_link_4 ?? ""),
     video_thumbnail: String(rawArtist.video_thumbnail ?? ""),
     artist_type: String(rawArtist.artist_type ?? ""),
+    video_portfolio_items: Array.isArray(rawArtist.video_portfolio_items)
+      ? (rawArtist.video_portfolio_items as Array<Record<string, unknown>>).map(
+          (item) => ({
+            position: Number(item.position ?? 0),
+            link: String(item.link ?? ""),
+            thumb: String(item.thumb ?? ""),
+            style_tags: Array.isArray(item.style_tags)
+              ? (item.style_tags as unknown[]).map((t) => String(t))
+              : [],
+          })
+        )
+      : [],
   };
 }
 
 function getPrimaryVideoLink(artist: Artist): string {
+  // Phase 4.2: 관계 테이블 기반 우선
+  const items = artist.video_portfolio_items;
+  if (items && items.length > 0) {
+    const firstLink = items
+      .map((i) => (i.link || "").trim())
+      .find((l) => l);
+    if (firstLink) return firstLink;
+  }
   return (
     artist.video_link_1 ||
     artist.video_link_2 ||
