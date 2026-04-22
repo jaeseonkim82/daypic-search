@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { randomBytes } from "crypto";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { getAuthSession } from "@/lib/auth-helpers";
 import { findArtistRow } from "@/lib/artist-lookup";
 import { formatDateToYMD } from "@/lib/date-utils";
 import { serverError } from "@/lib/error-response";
-
-function makeClosedRecordId() {
-  return `rec${randomBytes(12).toString("base64url").slice(0, 14)}`;
-}
+import { makeRecordId } from "@/lib/ids";
 
 async function resolveArtistContext(request: NextRequest) {
   const session = await getAuthSession(request);
@@ -107,7 +103,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const recordId = makeClosedRecordId();
+    const recordId = makeRecordId();
 
     const { data, error } = await supabase
       .from("closed_dates")

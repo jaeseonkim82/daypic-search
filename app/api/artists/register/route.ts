@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { randomBytes } from "crypto";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { getAuthSession } from "@/lib/auth-helpers";
 import { serverError } from "@/lib/error-response";
+import { makeRecordId, makeArtistCode } from "@/lib/ids";
 
 type RegisterArtistRequest = {
   companyName?: string;
@@ -25,13 +25,6 @@ function isValidUrl(value: string) {
   }
 }
 
-function makeArtistCode() {
-  return `artist_${randomBytes(9).toString("base64url").slice(0, 12)}`;
-}
-
-function makeRecordId() {
-  return `rec${randomBytes(12).toString("base64url").slice(0, 14)}`;
-}
 
 export async function POST(request: NextRequest) {
   try {
