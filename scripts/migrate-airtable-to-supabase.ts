@@ -21,7 +21,7 @@ import {
   pickImage,
   toArray,
   toStringValue,
-} from "../lib/airtable-helpers";
+} from "./airtable-helpers";
 import { getSupabaseAdmin, ArtistRow, ClosedDateRow, UserRow } from "../lib/supabase";
 
 const AIRTABLE_TOKEN = process.env.AIRTABLE_TOKEN || "";
