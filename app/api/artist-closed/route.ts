@@ -3,27 +3,8 @@ import { randomBytes } from "crypto";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { getAuthSession } from "@/lib/auth-helpers";
 import { findArtistRow } from "@/lib/artist-lookup";
-
-function formatDateToYMD(value: string): string {
-  if (!value) return "";
-
-  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return value;
-  }
-
-  if (value.includes("T")) {
-    return value.split("T")[0];
-  }
-
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return value.trim();
-
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-
-  return `${yyyy}-${mm}-${dd}`;
-}
+import { formatDateToYMD } from "@/lib/date-utils";
+import { serverError } from "@/lib/error-response";
 
 function makeClosedRecordId() {
   return `rec${randomBytes(12).toString("base64url").slice(0, 14)}`;
@@ -79,17 +60,10 @@ export async function GET(request: NextRequest) {
       })),
     });
   } catch (error) {
-    console.error("GET /api/artist-closed error:", error);
-
-    return NextResponse.json(
-      {
-        ok: false,
-        message:
-          error instanceof Error
-            ? error.message
-            : "촬영 불가 날짜 조회 중 오류가 발생했어.",
-      },
-      { status: 500 }
+    return serverError(
+      "GET /api/artist-closed",
+      error,
+      "촬영 불가 날짜 조회 중 오류가 발생했어."
     );
   }
 }
@@ -160,17 +134,10 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("POST /api/artist-closed error:", error);
-
-    return NextResponse.json(
-      {
-        ok: false,
-        message:
-          error instanceof Error
-            ? error.message
-            : "촬영 불가 날짜 등록 중 오류가 발생했어.",
-      },
-      { status: 500 }
+    return serverError(
+      "POST /api/artist-closed",
+      error,
+      "촬영 불가 날짜 등록 중 오류가 발생했어."
     );
   }
 }
@@ -222,17 +189,10 @@ export async function DELETE(request: NextRequest) {
       already_deleted: alreadyDeleted,
     });
   } catch (error) {
-    console.error("DELETE /api/artist-closed error:", error);
-
-    return NextResponse.json(
-      {
-        ok: false,
-        message:
-          error instanceof Error
-            ? error.message
-            : "촬영 불가 날짜 해제 중 오류가 발생했어.",
-      },
-      { status: 500 }
+    return serverError(
+      "DELETE /api/artist-closed",
+      error,
+      "촬영 불가 날짜 해제 중 오류가 발생했어."
     );
   }
 }

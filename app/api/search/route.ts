@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin, ArtistRow } from "@/lib/supabase";
+import { formatDateToYMD } from "@/lib/date-utils";
+import { serverError } from "@/lib/error-response";
 
 type VideoPortfolioItem = {
   position: number;
@@ -33,18 +35,6 @@ type Artist = {
 
 function normalizeText(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, "");
-}
-
-function formatDateToYMD(value: string): string {
-  if (!value) return "";
-  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
-  if (value.includes("T")) return value.split("T")[0];
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return value.trim();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${dd}`;
 }
 
 function shuffle<T>(array: T[]): T[] {
@@ -193,15 +183,10 @@ export async function GET(request: Request) {
       source: "supabase",
     });
   } catch (error) {
-    console.error("Search API error:", error);
-
-    return NextResponse.json(
-      {
-        ok: false,
-        message:
-          error instanceof Error ? error.message : "검색 중 오류가 발생했어.",
-      },
-      { status: 500 }
+    return serverError(
+      "GET /api/search",
+      error,
+      "검색 중 오류가 발생했어."
     );
   }
 }
