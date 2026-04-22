@@ -86,6 +86,7 @@ type ArtistResponse = {
   service?: string[] | string;
   region?: string[] | string;
   style_keywords?: string[] | string;
+  updated_at?: string | null;
 };
 
 type FormState = {
@@ -242,6 +243,7 @@ export default function ArtistProfileEditPage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [expectedUpdatedAt, setExpectedUpdatedAt] = useState<string | null>(null);
 
   const [form, setForm] = useState<FormState>({
     name: "",
@@ -308,6 +310,7 @@ export default function ArtistProfileEditPage() {
             regions: toArray(artistData.region),
             styleKeywords: toArray(artistData.style_keywords),
           });
+          setExpectedUpdatedAt(artistData.updated_at ?? null);
         }
       } catch (err) {
         if (!ignore) {
@@ -364,13 +367,16 @@ export default function ArtistProfileEditPage() {
       setError("");
       setMessage("");
 
-      const payload = {
+      const payload: Record<string, unknown> = {
         phone: form.phone.trim(),
         price: form.price.trim(),
         service: form.services,
         region: form.regions,
         style_keywords: form.styleKeywords,
       };
+      if (expectedUpdatedAt) {
+        payload.expected_updated_at = expectedUpdatedAt;
+      }
 
       const res = await fetch(`/api/artists/${artistId}`, {
         method: "PATCH",
@@ -383,10 +389,24 @@ export default function ArtistProfileEditPage() {
 
       const data = await res.json();
 
+      if (res.status === 409) {
+        // 다른 기기에서 저장되어 경합 발생 — 최신값 반영
+        if (typeof data?.current_updated_at === "string") {
+          setExpectedUpdatedAt(data.current_updated_at);
+        }
+        throw new Error(
+          data?.error ||
+            "다른 기기에서 먼저 저장되어, 새로고침 후 다시 시도해줘."
+        );
+      }
+
       if (!res.ok) {
         throw new Error(data?.error || data?.message || "작가정보 저장에 실패했어.");
       }
 
+      if (data?.artist?.updated_at) {
+        setExpectedUpdatedAt(data.artist.updated_at);
+      }
       setMessage("작가정보가 저장되었어.");
     } catch (err) {
       setError(
