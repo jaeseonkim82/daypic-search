@@ -75,6 +75,7 @@ type MeResponse = {
   artistId?: string | null;
   email?: string | null;
   name?: string | null;
+  dbError?: boolean;
 };
 
 type ArtistResponse = {
@@ -244,6 +245,7 @@ export default function ArtistProfileEditPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [expectedUpdatedAt, setExpectedUpdatedAt] = useState<string | null>(null);
+  const [dbError, setDbError] = useState(false);
 
   const [form, setForm] = useState<FormState>({
     name: "",
@@ -275,6 +277,10 @@ export default function ArtistProfileEditPage() {
         if (!meRes.ok || !meData.isLoggedIn) {
           window.location.href = "/login";
           return;
+        }
+
+        if (!ignore) {
+          setDbError(meData.dbError === true);
         }
 
         if (!meData.isArtist || !meData.artistId) {
@@ -430,6 +436,11 @@ export default function ArtistProfileEditPage() {
   return (
     <main className="min-h-screen bg-[#fcfbff] px-6 py-10 md:py-16">
       <div className="mx-auto max-w-4xl">
+        {dbError && (
+          <div className="mb-6 rounded-[20px] border border-[#f7c2c2] bg-[#fff5f5] px-6 py-4 text-sm text-[#a63838]">
+            데이터 서버 연결이 일시적으로 불안정해. 저장은 잠시 후 다시 시도해줘.
+          </div>
+        )}
         <section className="rounded-[30px] border border-[#ece7ff] bg-white p-8 shadow-sm md:p-10">
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
@@ -549,10 +560,10 @@ export default function ArtistProfileEditPage() {
           <div className="mt-8 flex flex-wrap gap-3">
             <button
               type="submit"
-              disabled={saving}
+              disabled={saving || dbError}
               className="inline-flex items-center justify-center rounded-full bg-[#7a5cf6] px-6 py-3 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {saving ? "저장 중..." : "저장하기"}
+              {saving ? "저장 중..." : dbError ? "서버 연결 대기 중" : "저장하기"}
             </button>
 
             <Link
