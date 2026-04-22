@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin, ArtistRow } from "@/lib/supabase";
 
+type VideoPortfolioItem = {
+  position: number;
+  link: string;
+  thumb: string;
+  style_tags: string[];
+};
+
 type Artist = {
   id: string;
   artist_id: string;
@@ -21,6 +28,7 @@ type Artist = {
   video_link_4?: string;
   video_thumbnail?: string;
   artist_type?: string;
+  video_portfolio_items?: VideoPortfolioItem[];
 };
 
 function normalizeText(value: string): string {
@@ -130,7 +138,40 @@ async function searchArtists(
     }
   }
 
-  return rows.map(artistRowToResponse);
+  const itemsByArtist = new Map<string, VideoPortfolioItem[]>();
+  if (rows.length > 0) {
+    const { data: videoItems, error: videoError } = await supabase
+      .from("video_portfolio_items")
+      .select("artist_id, position, link, thumb, style_tags")
+      .in(
+        "artist_id",
+        rows.map((r) => r.id)
+      )
+      .order("position", { ascending: true });
+
+    if (videoError) {
+      console.warn(
+        "video_portfolio_items 일괄 조회 실패:",
+        videoError.message
+      );
+    } else {
+      for (const v of videoItems ?? []) {
+        const arr = itemsByArtist.get(v.artist_id) ?? [];
+        arr.push({
+          position: v.position,
+          link: v.link,
+          thumb: v.thumb ?? "",
+          style_tags: v.style_tags ?? [],
+        });
+        itemsByArtist.set(v.artist_id, arr);
+      }
+    }
+  }
+
+  return rows.map((row) => ({
+    ...artistRowToResponse(row),
+    video_portfolio_items: itemsByArtist.get(row.id) ?? [],
+  }));
 }
 
 export async function GET(request: Request) {
