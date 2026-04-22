@@ -41,16 +41,18 @@ export type ArtistRow = {
   rating: number | null;
   style_keywords: string[] | null;
   open_chat_url: string | null;
-  video_link_1: string | null;
-  video_link_2: string | null;
-  video_link_3: string | null;
-  video_link_4: string | null;
-  video_thumbnail: string | null;
-  video_thumb_1: string | null;
-  video_thumb_2: string | null;
-  video_thumb_3: string | null;
-  video_thumb_4: string | null;
-  video_style_tags: string[] | null;
+  // Phase 4.2 Contract: 아래 video_* 컬럼은 007 DROP 예정. 옵셔널로 선언해
+  // DROP 후에도 타입 호환.
+  video_link_1?: string | null;
+  video_link_2?: string | null;
+  video_link_3?: string | null;
+  video_link_4?: string | null;
+  video_thumbnail?: string | null;
+  video_thumb_1?: string | null;
+  video_thumb_2?: string | null;
+  video_thumb_3?: string | null;
+  video_thumb_4?: string | null;
+  video_style_tags?: string[] | null;
   created_at?: string;
   updated_at?: string;
 };

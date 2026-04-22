@@ -62,18 +62,10 @@ CREATE TABLE IF NOT EXISTS artists (
   rating NUMERIC DEFAULT 4.8,
   style_keywords TEXT[],
   open_chat_url TEXT,
-  video_link_1 TEXT,
-  video_link_2 TEXT,
-  video_link_3 TEXT,
-  video_link_4 TEXT,
-  video_thumbnail TEXT,
-  video_thumb_1 TEXT,
-  video_thumb_2 TEXT,
-  video_thumb_3 TEXT,
-  video_thumb_4 TEXT,
-  video_style_tags TEXT[],
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
+  -- Phase 4.2 Contract: video_link_1..4 / video_thumb_1..4 / video_thumbnail /
+  -- video_style_tags 는 video_portfolio_items 테이블로 분리됨.
 );
 
 CREATE INDEX IF NOT EXISTS idx_artists_region ON artists USING GIN (region);
@@ -107,10 +99,6 @@ CREATE OR REPLACE VIEW artists_public
     id, artist_id, name, service, region, price, artist_type,
     portfolio, image, portfolio_images, rating,
     style_keywords, open_chat_url,
-    video_link_1, video_link_2, video_link_3, video_link_4,
-    video_thumbnail,
-    video_thumb_1, video_thumb_2, video_thumb_3, video_thumb_4,
-    video_style_tags,
     created_at, updated_at
   FROM artists;
 
@@ -136,3 +124,30 @@ ALTER TABLE closed_dates ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "closed_dates_select_public" ON closed_dates;
 -- closed_dates는 service_role만 접근 (작가 스케줄은 내부 API로만 공개)
 REVOKE SELECT ON closed_dates FROM anon;
+
+
+-- ============================================================
+-- video_portfolio_items 테이블 (Phase 4.2)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS video_portfolio_items (
+  artist_id TEXT NOT NULL REFERENCES artists(id) ON DELETE CASCADE,
+  position SMALLINT NOT NULL CHECK (position BETWEEN 1 AND 10),
+  link TEXT NOT NULL,
+  thumb TEXT,
+  style_tags TEXT[] NOT NULL DEFAULT '{}',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  PRIMARY KEY (artist_id, position)
+);
+
+CREATE INDEX IF NOT EXISTS idx_video_portfolio_artist
+  ON video_portfolio_items (artist_id);
+
+DROP TRIGGER IF EXISTS trg_video_portfolio_set_updated_at ON video_portfolio_items;
+CREATE TRIGGER trg_video_portfolio_set_updated_at
+  BEFORE UPDATE ON video_portfolio_items
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+ALTER TABLE video_portfolio_items ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "video_portfolio_items_select_public" ON video_portfolio_items;
+REVOKE SELECT ON video_portfolio_items FROM anon;

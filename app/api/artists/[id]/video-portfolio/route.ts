@@ -43,44 +43,19 @@ export async function PATCH(
 
     const body = await req.json();
 
-    const updates = {
-      video_link_1: sanitizeString(body.video_link_1),
-      video_link_2: sanitizeString(body.video_link_2),
-      video_link_3: sanitizeString(body.video_link_3),
-      video_link_4: sanitizeString(body.video_link_4),
-      video_thumb_1: sanitizeString(body.video_thumb_1),
-      video_thumb_2: sanitizeString(body.video_thumb_2),
-      video_thumb_3: sanitizeString(body.video_thumb_3),
-      video_thumb_4: sanitizeString(body.video_thumb_4),
-      video_style_tags: sanitizeStringArray(body.video_style_tags),
-      updated_at: new Date().toISOString(),
-    };
+    const slotInputs: Array<{ position: number; link: string; thumb: string }> = [
+      { position: 1, link: sanitizeString(body.video_link_1), thumb: sanitizeString(body.video_thumb_1) },
+      { position: 2, link: sanitizeString(body.video_link_2), thumb: sanitizeString(body.video_thumb_2) },
+      { position: 3, link: sanitizeString(body.video_link_3), thumb: sanitizeString(body.video_thumb_3) },
+      { position: 4, link: sanitizeString(body.video_link_4), thumb: sanitizeString(body.video_thumb_4) },
+    ];
+    const styleTags = sanitizeStringArray(body.video_style_tags);
 
     const supabase = getSupabaseAdmin();
-    const { data, error } = await supabase
-      .from("artists")
-      .update(updates)
-      .eq("id", artistRow.id)
-      .select()
-      .single();
 
-    if (error) {
-      return serverError(
-        "PATCH video-portfolio",
-        error,
-        "영상 포트폴리오 저장에 실패했어."
-      );
-    }
-
-    // Phase 4.2 Contract: 관계 테이블에도 명시적 upsert (트리거 경로와 병행).
-    // 추후 트리거 제거 + artists.video_* 컬럼 DROP 시 이 경로만 남음.
-    const slotInputs: Array<{ position: number; link: string; thumb: string }> = [
-      { position: 1, link: updates.video_link_1, thumb: updates.video_thumb_1 },
-      { position: 2, link: updates.video_link_2, thumb: updates.video_thumb_2 },
-      { position: 3, link: updates.video_link_3, thumb: updates.video_thumb_3 },
-      { position: 4, link: updates.video_link_4, thumb: updates.video_thumb_4 },
-    ];
-
+    // Phase 4.2 Contract: 관계 테이블(video_portfolio_items)에 직접 쓰기.
+    // artists.video_link_N / video_thumb_N / video_style_tags / video_thumbnail
+    // 컬럼은 007 마이그레이션으로 DROP 예정이므로 여기서도 쓰지 않음.
     const positionsToDelete = slotInputs
       .filter((s) => !s.link)
       .map((s) => s.position);
@@ -92,9 +67,10 @@ export async function PATCH(
         .eq("artist_id", artistRow.id)
         .in("position", positionsToDelete);
       if (delErr) {
-        console.warn(
-          "video_portfolio_items delete 실패(무시):",
-          delErr.message
+        return serverError(
+          "PATCH video-portfolio (delete)",
+          delErr,
+          "영상 포트폴리오 저장에 실패했어."
         );
       }
     }
@@ -106,7 +82,7 @@ export async function PATCH(
         position: s.position,
         link: s.link,
         thumb: s.thumb || null,
-        style_tags: updates.video_style_tags,
+        style_tags: styleTags,
       }));
 
     if (rowsToUpsert.length > 0) {
@@ -114,18 +90,28 @@ export async function PATCH(
         .from("video_portfolio_items")
         .upsert(rowsToUpsert, { onConflict: "artist_id,position" });
       if (upErr) {
-        console.warn(
-          "video_portfolio_items upsert 실패(무시):",
-          upErr.message
+        return serverError(
+          "PATCH video-portfolio (upsert)",
+          upErr,
+          "영상 포트폴리오 저장에 실패했어."
         );
       }
+    }
+
+    // artists.updated_at만 bump (낙관적 락 버전 토큰용). video 컬럼은 손대지 않음.
+    const { error: touchErr } = await supabase
+      .from("artists")
+      .update({ updated_at: new Date().toISOString() })
+      .eq("id", artistRow.id);
+    if (touchErr) {
+      console.warn("artists.updated_at bump 실패(무시):", touchErr.message);
     }
 
     return NextResponse.json({
       ok: true,
       success: true,
       message: "영상 포트폴리오가 저장되었어.",
-      recordId: data.id,
+      recordId: artistRow.id,
     });
   } catch (error) {
     return serverError(
