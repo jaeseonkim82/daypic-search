@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { getAuthSession } from "@/lib/auth-helpers";
 import { findArtistRow } from "@/lib/artist-lookup";
+import { serverError } from "@/lib/error-response";
 
 const ALLOWED_FOLDERS = new Set([
   "daypic/artists/representative",
@@ -66,11 +67,10 @@ export async function POST(request: NextRequest) {
       signature,
     });
   } catch (error) {
-    console.error("Cloudinary sign error:", error);
-
-    return NextResponse.json(
-      { error: "Cloudinary 서명 생성 중 오류가 발생했어." },
-      { status: 500 }
+    return serverError(
+      "POST /api/cloudinary/sign",
+      error,
+      "Cloudinary 서명 생성 중 오류가 발생했어."
     );
   }
 }

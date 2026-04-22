@@ -182,35 +182,40 @@ export async function PATCH(
 
     const updates: Partial<ArtistRow> = {};
 
-    if (has("phone")) updates.phone = sanitizeString(body.phone);
-    if (has("price")) updates.price = sanitizeString(body.price);
-    if (has("service")) updates.service = sanitizeStringArray(body.service);
-    if (has("region")) updates.region = sanitizeStringArray(body.region);
-    if (has("style_keywords"))
-      updates.style_keywords = sanitizeStringArray(body.style_keywords);
+    const STRING_FIELDS = [
+      "phone",
+      "price",
+      "video_link_1",
+      "video_link_2",
+      "video_link_3",
+      "video_link_4",
+      "video_thumbnail",
+      "video_thumb_1",
+      "video_thumb_2",
+      "video_thumb_3",
+      "video_thumb_4",
+    ] as const;
+    const ARRAY_FIELDS = [
+      "service",
+      "region",
+      "style_keywords",
+      "video_style_tags",
+    ] as const;
 
-    if (has("video_link_1"))
-      updates.video_link_1 = sanitizeString(body.video_link_1);
-    if (has("video_link_2"))
-      updates.video_link_2 = sanitizeString(body.video_link_2);
-    if (has("video_link_3"))
-      updates.video_link_3 = sanitizeString(body.video_link_3);
-    if (has("video_link_4"))
-      updates.video_link_4 = sanitizeString(body.video_link_4);
-
-    if (has("video_style_tags"))
-      updates.video_style_tags = sanitizeStringArray(body.video_style_tags);
-
-    if (has("video_thumbnail"))
-      updates.video_thumbnail = sanitizeString(body.video_thumbnail);
-    if (has("video_thumb_1"))
-      updates.video_thumb_1 = sanitizeString(body.video_thumb_1);
-    if (has("video_thumb_2"))
-      updates.video_thumb_2 = sanitizeString(body.video_thumb_2);
-    if (has("video_thumb_3"))
-      updates.video_thumb_3 = sanitizeString(body.video_thumb_3);
-    if (has("video_thumb_4"))
-      updates.video_thumb_4 = sanitizeString(body.video_thumb_4);
+    for (const field of STRING_FIELDS) {
+      if (has(field)) {
+        (updates as Record<string, unknown>)[field] = sanitizeString(
+          body[field]
+        );
+      }
+    }
+    for (const field of ARRAY_FIELDS) {
+      if (has(field)) {
+        (updates as Record<string, unknown>)[field] = sanitizeStringArray(
+          body[field]
+        );
+      }
+    }
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json({
