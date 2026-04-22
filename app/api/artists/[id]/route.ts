@@ -24,10 +24,6 @@ function sanitizeStringArray(value: unknown) {
   return [];
 }
 
-function toAttachmentArray(url: string) {
-  return url ? [{ id: undefined, url, filename: undefined }] : [];
-}
-
 function normalizeArtist(row: ArtistRow) {
   const styleKeywords = row.style_keywords ?? [];
   const videoLinks = [
@@ -75,17 +71,10 @@ function normalizeArtist(row: ArtistRow) {
     video_links: videoLinks,
 
     video_thumbnail: row.video_thumbnail ?? "",
-    video_thumbnail_attachments: toAttachmentArray(row.video_thumbnail ?? ""),
-
     video_thumb_1: row.video_thumb_1 ?? "",
     video_thumb_2: row.video_thumb_2 ?? "",
     video_thumb_3: row.video_thumb_3 ?? "",
     video_thumb_4: row.video_thumb_4 ?? "",
-
-    video_thumb_1_attachments: toAttachmentArray(row.video_thumb_1 ?? ""),
-    video_thumb_2_attachments: toAttachmentArray(row.video_thumb_2 ?? ""),
-    video_thumb_3_attachments: toAttachmentArray(row.video_thumb_3 ?? ""),
-    video_thumb_4_attachments: toAttachmentArray(row.video_thumb_4 ?? ""),
 
     video_style_tags: row.video_style_tags ?? [],
 
