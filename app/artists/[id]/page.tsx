@@ -90,8 +90,26 @@ function joinLabel(value: string[] | string | undefined) {
 function normalizeExternalUrl(url: string) {
   const value = (url || "").trim();
   if (!value) return "";
-  if (/^https?:\/\//i.test(value)) return value;
-  return `https://${value}`;
+  // 명시적 http/https 만 통과. 다른 스킴(javascript:, data: 등)은 거부.
+  if (/^https?:\/\//i.test(value)) {
+    try {
+      const parsed = new URL(value);
+      if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+        return parsed.toString();
+      }
+    } catch {
+      return "";
+    }
+    return "";
+  }
+  // 프로토콜 없는 도메인 입력은 https 로 래핑 후 재검증
+  try {
+    const parsed = new URL(`https://${value}`);
+    if (parsed.protocol !== "https:") return "";
+    return parsed.toString();
+  } catch {
+    return "";
+  }
 }
 
 function getVideoItems(artist: ArtistDetail | null): VideoPortfolioItem[] {
@@ -556,12 +574,6 @@ export default function ArtistDetailPage() {
                       </p>
                     </div>
 
-                    <div className="rounded-[18px] bg-[#faf7ff] px-4 py-4">
-                      <p className="text-[12px] font-semibold text-[#8f84a8]">평점</p>
-                      <p className="mt-1 text-[16px] font-semibold text-[#312b4b]">
-                        ★ {(artist.rating ?? 4.8).toFixed(1)}
-                      </p>
-                    </div>
                   </div>
 
                   <div className="mt-5">

@@ -1082,12 +1082,6 @@ export default function HomePage() {
                             {artist.price}
                           </p>
 
-                          <div className="mt-3 text-[13px] text-[#6d6786]">
-                            <span className="font-semibold text-[#f3a51c]">
-                              ★ {artist.rating?.toFixed(1)}
-                            </span>
-                          </div>
-
                           <div className="mt-3 flex flex-wrap gap-2">
                             {artist.style_keywords?.slice(0, 4).map((keyword) => (
                               <span
@@ -1181,12 +1175,6 @@ export default function HomePage() {
                         <p className="mt-3 text-[14px] font-semibold text-[#4b4468]">
                           {artist.price}
                         </p>
-
-                        <div className="mt-3 text-[13px] text-[#6d6786]">
-                          <span className="font-semibold text-[#f3a51c]">
-                            ★ {artist.rating?.toFixed(1)}
-                          </span>
-                        </div>
 
                         <div className="mt-3 flex flex-wrap gap-2">
                           {artist.style_keywords?.slice(0, 4).map((keyword) => (

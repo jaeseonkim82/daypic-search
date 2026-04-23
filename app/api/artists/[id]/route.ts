@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin, ArtistRow } from "@/lib/supabase";
 import { findArtistRow } from "@/lib/artist-lookup";
-import { requireArtistOwner } from "@/lib/auth-helpers";
+import { getAuthSession, requireArtistOwner } from "@/lib/auth-helpers";
 import { serverError } from "@/lib/error-response";
 
 function sanitizeString(value: unknown) {
@@ -52,44 +52,52 @@ async function fetchVideoPortfolioItems(artistId: string): Promise<VideoItem[]> 
   }));
 }
 
-function normalizeArtist(row: ArtistRow, items: VideoItem[] = []) {
+function normalizeArtist(
+  row: ArtistRow,
+  items: VideoItem[] = [],
+  opts: { isOwner: boolean } = { isOwner: false },
+) {
   const styleKeywords = row.style_keywords ?? [];
 
-  return {
+  const base = {
     id: row.id,
     artist_id: row.artist_id ?? "",
-    user_id: row.user_id ?? "",
-    kakao_id: row.kakao_id ?? "",
-
     name: row.name ?? "",
-    email: row.email ?? "",
-    phone: row.phone ?? "",
-
     service: row.service ?? [],
     region: row.region ?? [],
-
     price: row.price ?? "",
-
     style_keywords: styleKeywords,
-
     portfolio: row.portfolio ?? "",
     open_chat_url: row.open_chat_url ?? "",
     artist_type: row.artist_type ?? "",
-
     portfolio_images: row.portfolio_images ?? [],
-
     image: row.image ?? "",
     rating: typeof row.rating === "number" ? row.rating : null,
-
     video_portfolio_items: items,
-
-    // 낙관적 락(선택) 사용을 위한 버전 토큰
     updated_at: row.updated_at ?? null,
+  };
+
+  if (!opts.isOwner) return base;
+
+  // owner 본인에게만 PII 필드 추가 (prefill용)
+  return {
+    ...base,
+    user_id: row.user_id ?? "",
+    kakao_id: row.kakao_id ?? "",
+    email: row.email ?? "",
+    phone: row.phone ?? "",
   };
 }
 
+async function isOwnerOf(req: NextRequest, row: ArtistRow): Promise<boolean> {
+  const session = await getAuthSession(req);
+  if (!session.kakaoId) return false;
+  const owner = (row.kakao_id ?? "").toString().trim();
+  return !!owner && owner === session.kakaoId;
+}
+
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -103,8 +111,11 @@ export async function GET(
       );
     }
 
-    const videoItems = await fetchVideoPortfolioItems(row.id);
-    return NextResponse.json(normalizeArtist(row, videoItems));
+    const [videoItems, isOwner] = await Promise.all([
+      fetchVideoPortfolioItems(row.id),
+      isOwnerOf(req, row),
+    ]);
+    return NextResponse.json(normalizeArtist(row, videoItems, { isOwner }));
   } catch (error) {
     return serverError(
       "GET /api/artists/[id]",
@@ -172,7 +183,7 @@ export async function PATCH(
       return NextResponse.json({
         ok: true,
         message: "변경할 항목이 없어.",
-        artist: normalizeArtist(existing, items),
+        artist: normalizeArtist(existing, items, { isOwner: true }),
       });
     }
 
@@ -196,7 +207,7 @@ export async function PATCH(
     return NextResponse.json({
       ok: true,
       message: "작가정보가 저장되었어.",
-      artist: normalizeArtist(data as ArtistRow, items),
+      artist: normalizeArtist(data as ArtistRow, items, { isOwner: true }),
     });
   } catch (error) {
     return serverError(
