@@ -1031,6 +1031,11 @@ export default function HomePage() {
                             src={artist.videoCardThumb || artist.image}
                             alt={artist.name}
                             className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.05]"
+                            onError={(e) => {
+                              const img = e.currentTarget;
+                              if (img.src.endsWith(PLACEHOLDER_IMAGE)) return;
+                              img.src = PLACEHOLDER_IMAGE;
+                            }}
                           />
 
                           <div className="absolute left-3 top-3 z-10 rounded-full bg-black/60 px-3 py-1 text-[11px] font-semibold text-white backdrop-blur-sm">
@@ -1145,6 +1150,11 @@ export default function HomePage() {
                           src={artist.image}
                           alt={artist.name}
                           className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.05]"
+                          onError={(e) => {
+                            const img = e.currentTarget;
+                            if (img.src.endsWith(PLACEHOLDER_IMAGE)) return;
+                            img.src = PLACEHOLDER_IMAGE;
+                          }}
                         />
 
                         <button

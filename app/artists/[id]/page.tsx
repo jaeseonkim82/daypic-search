@@ -493,18 +493,17 @@ export default function ArtistDetailPage() {
             <section className="overflow-hidden rounded-[32px] border border-[#ece4f4] bg-white shadow-[0_18px_44px_rgba(80,60,120,0.08)]">
               <div className="grid gap-0 lg:grid-cols-[1.05fr_0.95fr]">
                 <div className="relative min-h-[420px] bg-[#f2ebfb]">
-                  {!heroImage || imageError ? (
-                    <div className="flex min-h-[420px] items-center justify-center text-[24px] font-bold text-[#6f6886]">
-                      {videoArtist ? "대표 썸네일 준비중" : "대표 이미지 준비중"}
-                    </div>
-                  ) : (
-                    <img
-                      src={heroImage}
-                      alt={artist.name}
-                      className="h-full w-full object-cover"
-                      onError={() => setImageError(true)}
-                    />
-                  )}
+                  <img
+                    src={imageError || !heroImage ? FALLBACK_IMAGE : heroImage}
+                    alt={artist.name}
+                    className="h-full w-full object-cover"
+                    onError={(e) => {
+                      const img = e.currentTarget;
+                      if (img.src.endsWith(FALLBACK_IMAGE)) return;
+                      setImageError(true);
+                      img.src = FALLBACK_IMAGE;
+                    }}
+                  />
 
                   <button
                     type="button"
