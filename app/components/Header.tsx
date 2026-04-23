@@ -1,60 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
 import { signOut } from "next-auth/react";
 import { usePathname } from "next/navigation";
-
-type MeResponse = {
-  ok: boolean;
-  userId: string | null;
-  artistId: string | null;
-  kakaoId: string | null;
-  email: string | null;
-  name: string | null;
-  isLoggedIn: boolean;
-  isArtist: boolean;
-};
+import { useMe } from "@/lib/queries/me";
 
 export default function Header() {
-  const [me, setMe] = useState<MeResponse | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data: me, isLoading: loading } = useMe();
   const pathname = usePathname();
 
-  useEffect(() => {
-    let mounted = true;
-
-    async function fetchMe() {
-      try {
-        const res = await fetch("/api/me", { cache: "no-store" });
-const data: MeResponse = await res.json();
-
-console.log("HEADER /api/me 응답:", data);
-
-if (mounted) {
-  setMe(data);
-}
-      } catch (error) {
-        console.error("로그인 상태 조회 실패:", error);
-        if (mounted) {
-          setMe(null);
-        }
-      } finally {
-        if (mounted) {
-          setLoading(false);
-        }
-      }
-    }
-
-    fetchMe();
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
   const displayName = me?.name || me?.email || "사용자";
-  console.log("HEADER 현재 me 상태:", me);
 
   const baseButtonClass =
     "inline-flex h-10 items-center justify-center rounded-full border border-[#ddd3ef] bg-white px-4 text-[12px] font-semibold text-[#5f5873] transition md:text-sm hover:bg-[#2f2552] hover:text-white hover:border-[#2f2552]";
