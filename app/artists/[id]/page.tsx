@@ -25,17 +25,6 @@ type ArtistDetail = {
   open_chat_url?: string;
   portfolio_images?: string[] | string;
   artist_type?: string;
-  video_link_1?: string;
-  video_link_2?: string;
-  video_link_3?: string;
-  video_link_4?: string;
-  video_links?: string[];
-  video_thumbnail?: string;
-  video_thumb_1?: string;
-  video_thumb_2?: string;
-  video_thumb_3?: string;
-  video_thumb_4?: string;
-  /** Phase 4.2: 관계 테이블 기반. 비어있으면 video_link_N 폴백. */
   video_portfolio_items?: VideoPortfolioItem[];
 };
 
@@ -107,26 +96,16 @@ function normalizeExternalUrl(url: string) {
   return `https://${value}`;
 }
 
+function getVideoItems(artist: ArtistDetail | null): VideoPortfolioItem[] {
+  if (!artist?.video_portfolio_items) return [];
+  return [...artist.video_portfolio_items].sort(
+    (a, b) => a.position - b.position
+  );
+}
+
 function getVideoLinks(artist: ArtistDetail | null): string[] {
-  if (!artist) return [];
-
-  // Phase 4.2: 관계 테이블 기반이 우선
-  if (artist.video_portfolio_items && artist.video_portfolio_items.length > 0) {
-    return artist.video_portfolio_items
-      .map((item) => (item.link || "").trim())
-      .filter(Boolean);
-  }
-
-  const direct = normalizeArray(artist.video_links);
-  if (direct.length > 0) return direct;
-
-  return [
-    artist.video_link_1,
-    artist.video_link_2,
-    artist.video_link_3,
-    artist.video_link_4,
-  ]
-    .map((item) => String(item || "").trim())
+  return getVideoItems(artist)
+    .map((item) => (item.link || "").trim())
     .filter(Boolean);
 }
 
@@ -165,6 +144,9 @@ function writeStorage<T>(key: string, value: T) {
 }
 
 function buildSavedArtist(artist: ArtistDetail): SavedArtist {
+  const firstThumb =
+    getVideoItems(artist).find((item) => item.thumb)?.thumb || "";
+
   return {
     id: String(artist.id),
     name: artist.name,
@@ -172,14 +154,7 @@ function buildSavedArtist(artist: ArtistDetail): SavedArtist {
     region: normalizeArray(artist.region),
     price: artist.price,
     portfolio: artist.portfolio,
-    image:
-      artist.image ||
-      artist.video_thumb_1 ||
-      artist.video_thumb_2 ||
-      artist.video_thumb_3 ||
-      artist.video_thumb_4 ||
-      artist.video_thumbnail ||
-      FALLBACK_IMAGE,
+    image: artist.image || firstThumb || FALLBACK_IMAGE,
   };
 }
 
@@ -231,12 +206,9 @@ export default function ArtistDetailPage() {
           keywords: normalizedKeywords,
           성향키워드: normalizedKeywords,
           portfolio_images: data.portfolio_images || "",
-          video_links: getVideoLinks(data),
-          video_thumbnail: data.video_thumbnail || "",
-          video_thumb_1: data.video_thumb_1 || "",
-          video_thumb_2: data.video_thumb_2 || "",
-          video_thumb_3: data.video_thumb_3 || "",
-          video_thumb_4: data.video_thumb_4 || "",
+          video_portfolio_items: Array.isArray(data.video_portfolio_items)
+            ? data.video_portfolio_items
+            : [],
           open_chat_url: data.open_chat_url || data.openchat_url || "",
           portfolio: typeof data.portfolio === "string" ? data.portfolio : "",
         });
@@ -281,26 +253,8 @@ export default function ArtistDetailPage() {
   const videoLinks = useMemo(() => getVideoLinks(artist), [artist]);
 
   const videoThumbs = useMemo(() => {
-    if (!artist) return [];
-
-    // Phase 4.2: 관계 테이블 기반 우선
-    if (
-      artist.video_portfolio_items &&
-      artist.video_portfolio_items.length > 0
-    ) {
-      const byPosition = new Map<number, string>();
-      for (const item of artist.video_portfolio_items) {
-        byPosition.set(item.position, (item.thumb || "").trim());
-      }
-      return [1, 2, 3, 4].map((p) => byPosition.get(p) ?? "");
-    }
-
-    return [
-      artist.video_thumb_1 || "",
-      artist.video_thumb_2 || "",
-      artist.video_thumb_3 || "",
-      artist.video_thumb_4 || "",
-    ];
+    const items = getVideoItems(artist);
+    return items.map((item) => (item.thumb || "").trim());
   }, [artist]);
 
   const portfolioImages = useMemo(() => {
@@ -312,15 +266,9 @@ export default function ArtistDetailPage() {
     if (!artist) return "";
 
     if (videoArtist) {
-      return (
-        artist.video_thumb_1 ||
-        artist.video_thumb_2 ||
-        artist.video_thumb_3 ||
-        artist.video_thumb_4 ||
-        artist.video_thumbnail ||
-        artist.image ||
-        ""
-      );
+      const firstThumb =
+        getVideoItems(artist).find((item) => item.thumb)?.thumb || "";
+      return firstThumb || artist.image || "";
     }
 
     return artist.image || "";
@@ -757,12 +705,6 @@ export default function ArtistDetailPage() {
                           {videoThumbs[index] ? (
                             <img
                               src={videoThumbs[index]}
-                              alt={`샘플 영상 ${index + 1}`}
-                              className="h-full w-full object-cover"
-                            />
-                          ) : artist.video_thumbnail ? (
-                            <img
-                              src={artist.video_thumbnail}
                               alt={`샘플 영상 ${index + 1}`}
                               className="h-full w-full object-cover"
                             />
