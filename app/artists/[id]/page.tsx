@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useArtistDetail } from "@/lib/queries/artist";
 
 type VideoPortfolioItem = {
   position: number;
@@ -179,8 +180,30 @@ export default function ArtistDetailPage() {
   const params = useParams();
   const artistId = String(params?.id || "");
 
-  const [artist, setArtist] = useState<ArtistDetail | null>(null);
-  const [loading, setLoading] = useState(true);
+  const {
+    data: rawArtist,
+    isLoading: loading,
+    isError,
+  } = useArtistDetail(artistId || null);
+
+  const artist = useMemo<ArtistDetail | null>(() => {
+    if (!rawArtist) return null;
+    return {
+      ...rawArtist,
+      id: String(rawArtist.id ?? artistId),
+      service: normalizeArray(rawArtist.service),
+      region: normalizeArray(rawArtist.region),
+      style_keywords: normalizeArray(rawArtist.style_keywords),
+      portfolio_images: rawArtist.portfolio_images || "",
+      video_portfolio_items: Array.isArray(rawArtist.video_portfolio_items)
+        ? rawArtist.video_portfolio_items
+        : [],
+      open_chat_url: rawArtist.open_chat_url || "",
+      portfolio:
+        typeof rawArtist.portfolio === "string" ? rawArtist.portfolio : "",
+    } as ArtistDetail;
+  }, [rawArtist, artistId]);
+
   const [imageError, setImageError] = useState(false);
 
   const [recentArtists, setRecentArtists] = useState<SavedArtist[]>([]);
@@ -188,56 +211,6 @@ export default function ArtistDetailPage() {
 
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
-
-  useEffect(() => {
-    let mounted = true;
-
-    async function fetchArtist() {
-      try {
-        setLoading(true);
-
-        const response = await fetch(`/api/artists/${encodeURIComponent(artistId)}`, {
-          method: "GET",
-          cache: "no-store",
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data?.error || `작가 상세 조회 실패: ${response.status}`);
-        }
-
-        if (!mounted) return;
-
-        setArtist({
-          ...data,
-          id: String(data.id ?? artistId),
-          service: normalizeArray(data.service),
-          region: normalizeArray(data.region),
-          style_keywords: normalizeArray(data.style_keywords),
-          portfolio_images: data.portfolio_images || "",
-          video_portfolio_items: Array.isArray(data.video_portfolio_items)
-            ? data.video_portfolio_items
-            : [],
-          open_chat_url: data.open_chat_url || data.openchat_url || "",
-          portfolio: typeof data.portfolio === "string" ? data.portfolio : "",
-        });
-      } catch (error) {
-        console.error(error);
-        if (mounted) setArtist(null);
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    }
-
-    if (artistId) {
-      fetchArtist();
-    }
-
-    return () => {
-      mounted = false;
-    };
-  }, [artistId]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
