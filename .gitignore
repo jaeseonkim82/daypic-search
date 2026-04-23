@@ -40,3 +40,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 airtable_records.json
+
+# supabase CLI cache
+supabase/.temp/

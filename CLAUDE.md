@@ -9,6 +9,7 @@ npm run dev             # 개발 서버 실행 (포트 3001)
 npm run build           # 프로덕션 빌드
 npm run start           # 프로덕션 서버 실행
 npm run lint            # ESLint 실행
+npm run gen:types       # Supabase 스키마 → lib/database.types.ts 재생성
 ```
 
 ## 프로젝트 개요
@@ -115,6 +116,7 @@ Fisher-Yates 셔플 후 반환
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=   # anon/publishable (현재 서버에서 미사용, 미래 RLS 전환 시 사용)
 SUPABASE_SERVICE_ROLE_KEY=
+SUPABASE_ACCESS_TOKEN=                  # `npm run gen:types` 실행시에만 필요 (개발용)
 
 # Auth
 KAKAO_CLIENT_ID=
@@ -146,4 +148,4 @@ CLOUDINARY_API_SECRET=
 
 - **레거시 별칭 정리**: 응답의 `keywords` / `성향키워드` 별칭을 `style_keywords` 단일 소스로 통일 (클라이언트 잔존 참조 확인 필요).
 - **Phase 5 RLS**: NextAuth JWT → Supabase JWT 서명 교환 + `auth.jwt()->>'kakao_id'` 기반 RLS. service_role 의존을 webhook/cron 전용으로 축소.
-- **Supabase 타입 자동 생성**: `supabase gen types typescript`로 `ArtistRow` 등 수동 타입 대체.
+- **CI 에서 types drift 체크**: `npm run gen:types` 로 만든 `lib/database.types.ts` 가 스키마와 항상 일치하는지 확인하는 CI step 검토.

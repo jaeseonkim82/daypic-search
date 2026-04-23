@@ -1,8 +1,11 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "./database.types";
 
-let cachedAdminClient: SupabaseClient | null = null;
+export type SupabaseAdminClient = SupabaseClient<Database>;
 
-export function getSupabaseAdmin(): SupabaseClient {
+let cachedAdminClient: SupabaseAdminClient | null = null;
+
+export function getSupabaseAdmin(): SupabaseAdminClient {
   if (cachedAdminClient) return cachedAdminClient;
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -16,56 +19,23 @@ export function getSupabaseAdmin(): SupabaseClient {
     );
   }
 
-  cachedAdminClient = createClient(url, secretKey, {
+  cachedAdminClient = createClient<Database>(url, secretKey, {
     auth: { persistSession: false },
   });
 
   return cachedAdminClient;
 }
 
-export type ArtistRow = {
-  id: string;
-  artist_id: string | null;
-  user_id: string | null;
-  kakao_id: string | null;
-  name: string;
-  email: string | null;
-  phone: string | null;
-  service: string[] | null;
-  region: string[] | null;
-  price: string | null;
-  artist_type: string | null;
-  portfolio: string | null;
-  image: string | null;
-  portfolio_images: string[] | null;
-  rating: number | null;
-  style_keywords: string[] | null;
-  open_chat_url: string | null;
-  created_at?: string;
-  updated_at?: string;
-};
+// supabase gen types 가 만든 Database 타입에서 직접 파생
+export type ArtistRow = Database["public"]["Tables"]["artists"]["Row"];
+export type ArtistInsert = Database["public"]["Tables"]["artists"]["Insert"];
+export type ArtistUpdate = Database["public"]["Tables"]["artists"]["Update"];
 
-export type UserRow = {
-  id: string;
-  kakao_id: string | null;
-  email: string | null;
-  name: string | null;
-  created_at?: string;
-  updated_at?: string;
-};
+export type UserRow = Database["public"]["Tables"]["users"]["Row"];
+export type UserInsert = Database["public"]["Tables"]["users"]["Insert"];
 
-export type ClosedDateRow = {
-  id: string;
-  artist_id: string;
-  closed_date: string;
-};
+export type ClosedDateRow =
+  Database["public"]["Tables"]["closed_dates"]["Row"];
 
-export type VideoPortfolioItemRow = {
-  artist_id: string;
-  position: number;
-  link: string;
-  thumb: string | null;
-  style_tags: string[] | null;
-  created_at?: string;
-  updated_at?: string;
-};
+export type VideoPortfolioItemRow =
+  Database["public"]["Tables"]["video_portfolio_items"]["Row"];
