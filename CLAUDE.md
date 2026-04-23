@@ -138,8 +138,12 @@ CLOUDINARY_API_SECRET=
 - 이미지 URL은 Cloudinary 호스트만 기대 (포트폴리오 업로드)
 - `success`/`성향키워드`/`keywords` 별칭은 `@deprecated` 표시. 클라이언트 전환 완료 후 제거 스케줄
 
+## 완료된 주요 Phase
+
+- **Phase 4.2 Contract (완료)**: video_link_1..4 / video_thumb_1..4 / video_thumbnail / video_style_tags 를 `video_portfolio_items` 관계 테이블로 전부 이관. artists 구 컬럼 DROP(007). PATCH 는 `{items:[{position,link,thumb}], style_tags}` 단일 스키마만 수용. 서버 응답은 `video_portfolio_items` 만 노출. 남아있던 Airtable URL도 Cloudinary 로 백필 후 Airtable 코드 완전 제거.
+
 ## 향후 작업 (참고)
 
-- **Phase 4.2 Contract**: video_link_1..4 → `video_portfolio_items` 관계 테이블 이관 완료. artists의 구 컬럼 DROP(007). 서버 응답은 items 기반 파생이며, 레거시 스칼라 필드(`video_link_1..4`, `video_thumbnail`)는 클라이언트 호환을 위해 응답에만 유지. 클라이언트를 `video_portfolio_items` 직접 사용으로 전환 후 응답의 레거시 필드 제거 예정.
-- **Phase 5 RLS**: NextAuth JWT → Supabase JWT 서명 교환 + `auth.jwt()->>'kakao_id'` 기반 RLS. service_role 의존을 webhook/cron 전용으로 축소
-- **Supabase 타입 자동 생성**: `supabase gen types typescript`로 `ArtistRow` 등 수동 타입 대체
+- **레거시 별칭 정리**: 응답의 `keywords` / `성향키워드` 별칭을 `style_keywords` 단일 소스로 통일 (클라이언트 잔존 참조 확인 필요).
+- **Phase 5 RLS**: NextAuth JWT → Supabase JWT 서명 교환 + `auth.jwt()->>'kakao_id'` 기반 RLS. service_role 의존을 webhook/cron 전용으로 축소.
+- **Supabase 타입 자동 생성**: `supabase gen types typescript`로 `ArtistRow` 등 수동 타입 대체.
