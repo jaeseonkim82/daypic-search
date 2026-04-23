@@ -268,10 +268,15 @@ export default function ArtistDetailPage() {
     if (videoArtist) {
       const firstThumb =
         getVideoItems(artist).find((item) => item.thumb)?.thumb || "";
-      return firstThumb || artist.image || "";
+      if (firstThumb) return firstThumb;
     }
 
-    return artist.image || "";
+    if (artist.image) return artist.image;
+
+    const portfolioFallback = normalizeArray(artist.portfolio_images)[0] || "";
+    if (portfolioFallback) return portfolioFallback;
+
+    return FALLBACK_IMAGE;
   }, [artist, videoArtist]);
 
   const isFavorite = useMemo(() => {
