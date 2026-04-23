@@ -40,8 +40,7 @@ type SavedArtist = {
 
 const RECENT_STORAGE_KEY = "daypic_recent_artists";
 const FAVORITE_STORAGE_KEY = "daypic_favorite_artists";
-const FALLBACK_IMAGE =
-  "https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=1200&q=80";
+const FALLBACK_IMAGE = "/placeholder-artist.svg";
 
 function normalizeArray(value: unknown): string[] {
   if (!value) return [];
