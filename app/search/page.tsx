@@ -3,6 +3,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
+type VideoPortfolioItem = {
+  position: number;
+  link: string;
+  thumb: string;
+  style_tags: string[];
+};
+
 type Artist = {
   id: string;
   name: string;
@@ -16,20 +23,8 @@ type Artist = {
   keywords?: string[];
   openchat_url?: string;
   portfolio_images?: string[] | string;
-
-  // ✅ 영상 관련 필드 (legacy: video_link_N/video_thumbnail, 신규: video_portfolio_items)
-  video_link_1?: string;
-  video_link_2?: string;
-  video_link_3?: string;
-  video_link_4?: string;
-  video_thumbnail?: string;
   artist_type?: string;
-  video_portfolio_items?: Array<{
-    position: number;
-    link: string;
-    thumb: string;
-    style_tags: string[];
-  }>;
+  video_portfolio_items?: VideoPortfolioItem[];
 };
 
 type SavedArtist = {
@@ -142,7 +137,7 @@ function buildSavedArtist(artist: Artist): SavedArtist {
     region: normalizeArray(artist.region),
     price: artist.price,
     portfolio: artist.portfolio,
-    image: artist.image || artist.video_thumbnail || "",
+    image: artist.image || getPrimaryVideoThumb(artist) || "",
   };
 }
 
@@ -204,12 +199,6 @@ function normalizeArtistFromApi(rawArtist: Record<string, any>): Artist {
     openchat_url: openchatValue ? String(openchatValue) : "",
     portfolio_images: portfolioImagesValue,
 
-    // ✅ 영상 관련 필드
-    video_link_1: String(rawArtist.video_link_1 ?? ""),
-    video_link_2: String(rawArtist.video_link_2 ?? ""),
-    video_link_3: String(rawArtist.video_link_3 ?? ""),
-    video_link_4: String(rawArtist.video_link_4 ?? ""),
-    video_thumbnail: String(rawArtist.video_thumbnail ?? ""),
     artist_type: String(rawArtist.artist_type ?? ""),
     video_portfolio_items: Array.isArray(rawArtist.video_portfolio_items)
       ? (rawArtist.video_portfolio_items as Array<Record<string, unknown>>).map(
@@ -226,21 +215,26 @@ function normalizeArtistFromApi(rawArtist: Record<string, any>): Artist {
   };
 }
 
-function getPrimaryVideoLink(artist: Artist): string {
-  // Phase 4.2: 관계 테이블 기반 우선
-  const items = artist.video_portfolio_items;
-  if (items && items.length > 0) {
-    const firstLink = items
-      .map((i) => (i.link || "").trim())
-      .find((l) => l);
-    if (firstLink) return firstLink;
-  }
+function getSortedVideoItems(artist: Artist): VideoPortfolioItem[] {
+  if (!artist.video_portfolio_items) return [];
+  return [...artist.video_portfolio_items].sort(
+    (a, b) => a.position - b.position
+  );
+}
+
+function getPrimaryVideoThumb(artist: Artist): string {
   return (
-    artist.video_link_1 ||
-    artist.video_link_2 ||
-    artist.video_link_3 ||
-    artist.video_link_4 ||
-    ""
+    getSortedVideoItems(artist)
+      .map((item) => (item.thumb || "").trim())
+      .find(Boolean) || ""
+  );
+}
+
+function getPrimaryVideoLink(artist: Artist): string {
+  return (
+    getSortedVideoItems(artist)
+      .map((item) => (item.link || "").trim())
+      .find(Boolean) || ""
   );
 }
 
@@ -347,12 +341,14 @@ export default function HomePage() {
           ? artist.keywords
           : DEFAULT_KEYWORDS;
 
+      const primaryThumb = getPrimaryVideoThumb(artist);
+      const fallbackImage = FALLBACK_IMAGES[index % FALLBACK_IMAGES.length];
+
       return {
         ...artist,
         id: String(artist.id),
-        image: artist.image || FALLBACK_IMAGES[index % FALLBACK_IMAGES.length],
-        video_thumbnail:
-          artist.video_thumbnail || artist.image || FALLBACK_IMAGES[index % FALLBACK_IMAGES.length],
+        image: artist.image || fallbackImage,
+        videoCardThumb: primaryThumb || artist.image || fallbackImage,
         rating: typeof artist.rating === "number" ? artist.rating : 4.8,
         keywords: safeKeywords,
         openchat_url: artist.openchat_url || "",
@@ -477,12 +473,8 @@ export default function HomePage() {
         성향키워드: artist.keywords || [],
         openchat_url: artist.openchat_url || "",
         portfolio_images: artist.portfolio_images || "",
-        video_link_1: artist.video_link_1 || "",
-        video_link_2: artist.video_link_2 || "",
-        video_link_3: artist.video_link_3 || "",
-        video_link_4: artist.video_link_4 || "",
-        video_thumbnail: artist.video_thumbnail || "",
         artist_type: artist.artist_type || "",
+        video_portfolio_items: artist.video_portfolio_items || [],
       },
     };
 
@@ -1044,7 +1036,7 @@ export default function HomePage() {
                       >
                         <div className="relative aspect-[16/10] overflow-hidden bg-[#f1ebf8]">
                           <img
-                            src={artist.video_thumbnail || artist.image}
+                            src={artist.videoCardThumb || artist.image}
                             alt={artist.name}
                             className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.05]"
                           />
