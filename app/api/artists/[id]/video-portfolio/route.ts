@@ -43,19 +43,34 @@ export async function PATCH(
 
     const body = await req.json();
 
-    const slotInputs: Array<{ position: number; link: string; thumb: string }> = [
-      { position: 1, link: sanitizeString(body.video_link_1), thumb: sanitizeString(body.video_thumb_1) },
-      { position: 2, link: sanitizeString(body.video_link_2), thumb: sanitizeString(body.video_thumb_2) },
-      { position: 3, link: sanitizeString(body.video_link_3), thumb: sanitizeString(body.video_thumb_3) },
-      { position: 4, link: sanitizeString(body.video_link_4), thumb: sanitizeString(body.video_thumb_4) },
-    ];
-    const styleTags = sanitizeStringArray(body.video_style_tags);
+    // Phase 4.2 Contract: items 배열만 수용. 레거시 video_link_N / video_thumb_N 제거.
+    if (!Array.isArray(body.items)) {
+      return NextResponse.json(
+        { ok: false, error: "items 배열이 필요해." },
+        { status: 400 },
+      );
+    }
+
+    const slotInputs: Array<{ position: number; link: string; thumb: string }> =
+      (body.items as Array<Record<string, unknown>>)
+        .map((raw) => ({
+          position: Number(raw.position ?? 0),
+          link: sanitizeString(raw.link),
+          thumb: sanitizeString(raw.thumb),
+        }))
+        .filter((s) => s.position >= 1 && s.position <= 10);
+
+    if (slotInputs.length === 0) {
+      return NextResponse.json(
+        { ok: false, error: "유효한 position(1~10)이 있는 item이 필요해." },
+        { status: 400 },
+      );
+    }
+
+    const styleTags = sanitizeStringArray(body.style_tags);
 
     const supabase = getSupabaseAdmin();
 
-    // Phase 4.2 Contract: 관계 테이블(video_portfolio_items)에 직접 쓰기.
-    // artists.video_link_N / video_thumb_N / video_style_tags / video_thumbnail
-    // 컬럼은 007 마이그레이션으로 DROP 예정이므로 여기서도 쓰지 않음.
     const positionsToDelete = slotInputs
       .filter((s) => !s.link)
       .map((s) => s.position);

@@ -14,25 +14,18 @@ type MeResponse = {
   name?: string | null;
 };
 
-type AirtableAttachment = {
-  id?: string;
-  url?: string;
-  filename?: string;
+type VideoPortfolioItem = {
+  position: number;
+  link: string;
+  thumb: string;
+  style_tags: string[];
 };
 
 type ArtistDetailResponse = {
   id: string;
   email?: string;
   name?: string;
-  video_link_1?: string;
-  video_link_2?: string;
-  video_link_3?: string;
-  video_link_4?: string;
-  video_thumb_1?: AirtableAttachment[] | string;
-  video_thumb_2?: AirtableAttachment[] | string;
-  video_thumb_3?: AirtableAttachment[] | string;
-  video_thumb_4?: AirtableAttachment[] | string;
-  video_style_tags?: string[] | string;
+  video_portfolio_items?: VideoPortfolioItem[];
 };
 
 type VideoPortfolioSaveResponse = {
@@ -72,26 +65,11 @@ function normalizeTagArray(value: unknown): string[] {
   return [];
 }
 
-function normalizeThumbnailUrl(value: unknown): string {
-  if (!value) return "";
-
-  if (typeof value === "string") {
-    return value.trim();
-  }
-
-  if (Array.isArray(value)) {
-    const first = value[0];
-    if (
-      first &&
-      typeof first === "object" &&
-      "url" in first &&
-      typeof first.url === "string"
-    ) {
-      return first.url.trim();
-    }
-  }
-
-  return "";
+function findItem(
+  items: VideoPortfolioItem[] | undefined,
+  position: number,
+): VideoPortfolioItem | undefined {
+  return items?.find((item) => item.position === position);
 }
 
 function formatBytes(bytes: number): string {
@@ -291,17 +269,26 @@ export default function VideoUploadPage() {
         }
 
         if (!ignore) {
+          const items = artistData.video_portfolio_items ?? [];
+          const item1 = findItem(items, 1);
+          const item2 = findItem(items, 2);
+          const item3 = findItem(items, 3);
+          const item4 = findItem(items, 4);
+
           setArtistName(artistData.name || meData.name || "");
           setArtistEmail(artistData.email || meData.email || "");
-          setVideoLink1(artistData.video_link_1 || "");
-          setVideoLink2(artistData.video_link_2 || "");
-          setVideoLink3(artistData.video_link_3 || "");
-          setVideoLink4(artistData.video_link_4 || "");
-          setExistingThumbUrl1(normalizeThumbnailUrl(artistData.video_thumb_1));
-          setExistingThumbUrl2(normalizeThumbnailUrl(artistData.video_thumb_2));
-          setExistingThumbUrl3(normalizeThumbnailUrl(artistData.video_thumb_3));
-          setExistingThumbUrl4(normalizeThumbnailUrl(artistData.video_thumb_4));
-          setVideoStyleTags(normalizeTagArray(artistData.video_style_tags).join(", "));
+          setVideoLink1(item1?.link || "");
+          setVideoLink2(item2?.link || "");
+          setVideoLink3(item3?.link || "");
+          setVideoLink4(item4?.link || "");
+          setExistingThumbUrl1(item1?.thumb || "");
+          setExistingThumbUrl2(item2?.thumb || "");
+          setExistingThumbUrl3(item3?.thumb || "");
+          setExistingThumbUrl4(item4?.thumb || "");
+          const firstTags =
+            items.find((it) => it.style_tags && it.style_tags.length > 0)
+              ?.style_tags ?? [];
+          setVideoStyleTags(firstTags.join(", "));
         }
       } catch (err) {
         console.error(err);
@@ -452,26 +439,24 @@ export default function VideoUploadPage() {
 
       setMessage("영상 포트폴리오를 저장하고 있습니다...");
 
+      const items = [
+        { position: 1, link: videoLink1.trim(), thumb: thumbUrl1 },
+        { position: 2, link: videoLink2.trim(), thumb: thumbUrl2 },
+        { position: 3, link: videoLink3.trim(), thumb: thumbUrl3 },
+        { position: 4, link: videoLink4.trim(), thumb: thumbUrl4 },
+      ];
+      const style_tags = videoStyleTags
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+
       const res = await fetch(`/api/artists/${artistId}/video-portfolio`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
         },
         credentials: "include",
-        body: JSON.stringify({
-          video_link_1: videoLink1.trim(),
-          video_link_2: videoLink2.trim(),
-          video_link_3: videoLink3.trim(),
-          video_link_4: videoLink4.trim(),
-          video_thumb_1: thumbUrl1,
-          video_thumb_2: thumbUrl2,
-          video_thumb_3: thumbUrl3,
-          video_thumb_4: thumbUrl4,
-          video_style_tags: videoStyleTags
-            .split(",")
-            .map((item) => item.trim())
-            .filter(Boolean),
-        }),
+        body: JSON.stringify({ items, style_tags }),
       });
 
       const data: VideoPortfolioSaveResponse = await res.json();
