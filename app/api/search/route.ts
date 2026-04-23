@@ -14,7 +14,6 @@ type Artist = {
   id: string;
   artist_id: string;
   name: string;
-  email: string;
   service: string[];
   region: string[];
   price: string;
@@ -49,7 +48,6 @@ function artistRowToResponse(
     id: row.id,
     artist_id: row.artist_id ?? "",
     name: row.name,
-    email: row.email ?? "",
     service: row.service ?? [],
     region: row.region ?? [],
     price: row.price ?? "",
