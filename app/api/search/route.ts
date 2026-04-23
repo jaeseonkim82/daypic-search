@@ -24,13 +24,6 @@ type Artist = {
   keywords?: string[];
   openchat_url?: string;
   portfolio_images?: string[];
-  // Phase 4.2 Contract: video_portfolio_items가 source of truth.
-  // 아래 4개 스칼라 필드는 레거시 클라이언트 호환을 위해 응답에만 파생 제공.
-  video_link_1?: string;
-  video_link_2?: string;
-  video_link_3?: string;
-  video_link_4?: string;
-  video_thumbnail?: string;
   artist_type?: string;
   video_portfolio_items?: VideoPortfolioItem[];
 };
@@ -52,13 +45,6 @@ function artistRowToResponse(
   row: ArtistRow,
   items: VideoPortfolioItem[] = []
 ): Artist {
-  const byPosition = new Map(items.map((item) => [item.position, item]));
-  const link1 = byPosition.get(1)?.link ?? "";
-  const link2 = byPosition.get(2)?.link ?? "";
-  const link3 = byPosition.get(3)?.link ?? "";
-  const link4 = byPosition.get(4)?.link ?? "";
-  const primaryThumb = byPosition.get(1)?.thumb ?? "";
-
   return {
     id: row.id,
     artist_id: row.artist_id ?? "",
@@ -74,11 +60,6 @@ function artistRowToResponse(
     keywords: row.style_keywords ?? [],
     openchat_url: row.open_chat_url ?? "",
     portfolio_images: row.portfolio_images ?? [],
-    video_link_1: link1,
-    video_link_2: link2,
-    video_link_3: link3,
-    video_link_4: link4,
-    video_thumbnail: primaryThumb,
     artist_type: row.artist_type ?? "",
     video_portfolio_items: items,
   };

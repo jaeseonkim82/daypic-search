@@ -54,22 +54,6 @@ async function fetchVideoPortfolioItems(artistId: string): Promise<VideoItem[]> 
 
 function normalizeArtist(row: ArtistRow, items: VideoItem[] = []) {
   const styleKeywords = row.style_keywords ?? [];
-  const byPosition = new Map(items.map((item) => [item.position, item]));
-
-  const link1 = byPosition.get(1)?.link ?? "";
-  const link2 = byPosition.get(2)?.link ?? "";
-  const link3 = byPosition.get(3)?.link ?? "";
-  const link4 = byPosition.get(4)?.link ?? "";
-  const thumb1 = byPosition.get(1)?.thumb ?? "";
-  const thumb2 = byPosition.get(2)?.thumb ?? "";
-  const thumb3 = byPosition.get(3)?.thumb ?? "";
-  const thumb4 = byPosition.get(4)?.thumb ?? "";
-
-  // items 중 아무 position의 style_tags (전부 동일한 전역 태그 구조)
-  const videoStyleTags =
-    items.find((item) => item.style_tags.length > 0)?.style_tags ?? [];
-
-  const videoLinks = [link1, link2, link3, link4].filter(Boolean);
 
   return {
     id: row.id,
@@ -101,22 +85,6 @@ function normalizeArtist(row: ArtistRow, items: VideoItem[] = []) {
     image: row.image ?? "",
     rating: typeof row.rating === "number" ? row.rating : null,
 
-    video_link_1: link1,
-    video_link_2: link2,
-    video_link_3: link3,
-    video_link_4: link4,
-
-    video_links: videoLinks,
-
-    video_thumbnail: thumb1,
-    video_thumb_1: thumb1,
-    video_thumb_2: thumb2,
-    video_thumb_3: thumb3,
-    video_thumb_4: thumb4,
-
-    video_style_tags: videoStyleTags,
-
-    // Phase 4.2 신규: 관계 테이블 원형
     video_portfolio_items: items,
 
     // 낙관적 락(선택) 사용을 위한 버전 토큰
