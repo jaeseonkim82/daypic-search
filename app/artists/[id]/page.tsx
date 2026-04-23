@@ -20,8 +20,7 @@ type ArtistDetail = {
   portfolio?: string;
   image?: string;
   rating?: number | null;
-  keywords?: string[];
-  성향키워드?: string[] | string;
+  style_keywords?: string[];
   open_chat_url?: string;
   portfolio_images?: string[] | string;
   artist_type?: string;
@@ -192,18 +191,12 @@ export default function ArtistDetailPage() {
 
         if (!mounted) return;
 
-        const normalizedKeywords =
-          normalizeArray(data.keywords).length > 0
-            ? normalizeArray(data.keywords)
-            : normalizeArray(data["성향키워드"]);
-
         setArtist({
           ...data,
           id: String(data.id ?? artistId),
           service: normalizeArray(data.service),
           region: normalizeArray(data.region),
-          keywords: normalizedKeywords,
-          성향키워드: normalizedKeywords,
+          style_keywords: normalizeArray(data.style_keywords),
           portfolio_images: data.portfolio_images || "",
           video_portfolio_items: Array.isArray(data.video_portfolio_items)
             ? data.video_portfolio_items
@@ -574,7 +567,7 @@ export default function ArtistDetailPage() {
                   <div className="mt-5">
                     <p className="text-[13px] font-semibold text-[#8f84a8]">작가 키워드</p>
                     <div className="mt-3 flex flex-wrap gap-2">
-                      {normalizeArray(artist.keywords).map((keyword) => (
+                      {normalizeArray(artist.style_keywords).map((keyword) => (
                         <span
                           key={keyword}
                           className="inline-flex items-center rounded-full bg-[#f2ebff] px-3 py-1.5 text-[12px] font-medium text-[#6d46f6]"

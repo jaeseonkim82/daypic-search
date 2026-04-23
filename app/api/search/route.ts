@@ -21,7 +21,7 @@ type Artist = {
   portfolio?: string;
   image?: string;
   rating?: number;
-  keywords?: string[];
+  style_keywords?: string[];
   openchat_url?: string;
   portfolio_images?: string[];
   artist_type?: string;
@@ -56,8 +56,7 @@ function artistRowToResponse(
     portfolio: row.portfolio ?? "",
     image: row.image ?? "",
     rating: row.rating ?? 4.8,
-    // @deprecated 클라이언트가 style_keywords로 전환하면 이 별칭 제거
-    keywords: row.style_keywords ?? [],
+    style_keywords: row.style_keywords ?? [],
     openchat_url: row.open_chat_url ?? "",
     portfolio_images: row.portfolio_images ?? [],
     artist_type: row.artist_type ?? "",

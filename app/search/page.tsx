@@ -20,7 +20,7 @@ type Artist = {
   portfolio?: string;
   image?: string;
   rating?: number;
-  keywords?: string[];
+  style_keywords?: string[];
   openchat_url?: string;
   portfolio_images?: string[] | string;
   artist_type?: string;
@@ -135,11 +135,7 @@ function buildSavedArtist(artist: Artist): SavedArtist {
 }
 
 function normalizeArtistFromApi(rawArtist: Record<string, any>): Artist {
-  const keywordsSource =
-    rawArtist.keywords ??
-    rawArtist["성향키워드"] ??
-    rawArtist["작가 키워드"] ??
-    rawArtist["artist_keywords"];
+  const keywordsSource = rawArtist.style_keywords;
 
   const imageValue =
     rawArtist.image ??
@@ -188,7 +184,7 @@ function normalizeArtistFromApi(rawArtist: Record<string, any>): Artist {
     portfolio: portfolioValue ? String(portfolioValue) : "",
     image: imageValue ? String(imageValue) : "",
     rating: ratingValue,
-    keywords: normalizeArray(keywordsSource),
+    style_keywords: normalizeArray(keywordsSource),
     openchat_url: openchatValue ? String(openchatValue) : "",
     portfolio_images: portfolioImagesValue,
 
@@ -330,8 +326,8 @@ export default function HomePage() {
   const displayArtists = useMemo(() => {
     return artists.map((artist) => {
       const safeKeywords =
-        artist.keywords && artist.keywords.length > 0
-          ? artist.keywords
+        artist.style_keywords && artist.style_keywords.length > 0
+          ? artist.style_keywords
           : DEFAULT_KEYWORDS;
 
       const primaryThumb = getPrimaryVideoThumb(artist);
@@ -342,7 +338,7 @@ export default function HomePage() {
         image: artist.image || PLACEHOLDER_IMAGE,
         videoCardThumb: primaryThumb || artist.image || PLACEHOLDER_IMAGE,
         rating: typeof artist.rating === "number" ? artist.rating : 4.8,
-        keywords: safeKeywords,
+        style_keywords: safeKeywords,
         openchat_url: artist.openchat_url || "",
         portfolio_images: artist.portfolio_images || "",
       };
@@ -461,8 +457,7 @@ export default function HomePage() {
       [String(artist.id)]: {
         ...artist,
         id: String(artist.id),
-        keywords: artist.keywords || [],
-        성향키워드: artist.keywords || [],
+        style_keywords: artist.style_keywords || [],
         openchat_url: artist.openchat_url || "",
         portfolio_images: artist.portfolio_images || "",
         artist_type: artist.artist_type || "",
@@ -1094,7 +1089,7 @@ export default function HomePage() {
                           </div>
 
                           <div className="mt-3 flex flex-wrap gap-2">
-                            {artist.keywords?.slice(0, 4).map((keyword) => (
+                            {artist.style_keywords?.slice(0, 4).map((keyword) => (
                               <span
                                 key={keyword}
                                 className="rounded-full bg-[#f2ebff] px-2.5 py-1 text-[11px] font-medium text-[#7652ea]"
@@ -1194,7 +1189,7 @@ export default function HomePage() {
                         </div>
 
                         <div className="mt-3 flex flex-wrap gap-2">
-                          {artist.keywords?.slice(0, 4).map((keyword) => (
+                          {artist.style_keywords?.slice(0, 4).map((keyword) => (
                             <span
                               key={keyword}
                               className="rounded-full bg-[#f2ebff] px-2.5 py-1 text-[11px] font-medium text-[#7652ea]"

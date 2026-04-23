@@ -71,10 +71,6 @@ function normalizeArtist(row: ArtistRow, items: VideoItem[] = []) {
     price: row.price ?? "",
 
     style_keywords: styleKeywords,
-    // @deprecated 하위 호환용 별칭. 클라이언트 전환 후 제거 예정.
-    keywords: styleKeywords,
-    // @deprecated Airtable 시절 한국어 키 호환. 클라이언트 전환 후 제거.
-    성향키워드: styleKeywords,
 
     portfolio: row.portfolio ?? "",
     open_chat_url: row.open_chat_url ?? "",
