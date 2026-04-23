@@ -54,8 +54,7 @@ export async function PATCH(
 
     return NextResponse.json({
       ok: true,
-      success: true,
-      record: { id: data.id, fields: { 대표사진: [{ url: cleanedImageUrl }] } },
+      id: data.id,
       imageUrl: cleanedImageUrl,
     });
   } catch (error) {

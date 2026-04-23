@@ -30,7 +30,6 @@ type ArtistDetailResponse = {
 
 type VideoPortfolioSaveResponse = {
   ok?: boolean;
-  /** @deprecated use `ok` */ success?: boolean;
   error?: string;
   message?: string;
 };
@@ -461,7 +460,7 @@ export default function VideoUploadPage() {
 
       const data: VideoPortfolioSaveResponse = await res.json();
 
-      if (!res.ok || !(data.ok ?? data.success)) {
+      if (!res.ok || !data.ok) {
         throw new Error(data.error || data.message || "영상 포트폴리오 저장에 실패했습니다.");
       }
 

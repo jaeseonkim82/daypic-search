@@ -47,7 +47,6 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       ok: true,
-      success: true,
       artist: {
         id: data.id,
         email: data.email ?? "",

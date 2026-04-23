@@ -32,7 +32,7 @@ export async function PATCH(
 
     if (!artistId) {
       return NextResponse.json(
-        { success: false, error: "작가 ID가 없습니다." },
+        { ok: false, error: "작가 ID가 없습니다." },
         { status: 400 }
       );
     }
@@ -124,7 +124,6 @@ export async function PATCH(
 
     return NextResponse.json({
       ok: true,
-      success: true,
       message: "영상 포트폴리오가 저장되었어.",
       recordId: artistRow.id,
     });

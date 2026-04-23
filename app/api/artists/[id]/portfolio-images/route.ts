@@ -71,8 +71,7 @@ export async function PATCH(
 
     return NextResponse.json({
       ok: true,
-      success: true,
-      record: { id: data.id, fields: { portfolio_images: cleanedUrls } },
+      id: data.id,
       savedCount: cleanedUrls.length,
       imageUrls: cleanedUrls,
     });
