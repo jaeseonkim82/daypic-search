@@ -24,6 +24,8 @@ type Artist = {
   keywords?: string[];
   openchat_url?: string;
   portfolio_images?: string[];
+  // Phase 4.2 Contract: video_portfolio_items가 source of truth.
+  // 아래 4개 스칼라 필드는 레거시 클라이언트 호환을 위해 응답에만 파생 제공.
   video_link_1?: string;
   video_link_2?: string;
   video_link_3?: string;
@@ -50,13 +52,12 @@ function artistRowToResponse(
   row: ArtistRow,
   items: VideoPortfolioItem[] = []
 ): Artist {
-  // Phase 4.2: 관계 테이블이 source. artists.video_* 는 fallback.
   const byPosition = new Map(items.map((item) => [item.position, item]));
-  const link1 = byPosition.get(1)?.link ?? row.video_link_1 ?? "";
-  const link2 = byPosition.get(2)?.link ?? row.video_link_2 ?? "";
-  const link3 = byPosition.get(3)?.link ?? row.video_link_3 ?? "";
-  const link4 = byPosition.get(4)?.link ?? row.video_link_4 ?? "";
-  const primaryThumb = byPosition.get(1)?.thumb ?? row.video_thumbnail ?? "";
+  const link1 = byPosition.get(1)?.link ?? "";
+  const link2 = byPosition.get(2)?.link ?? "";
+  const link3 = byPosition.get(3)?.link ?? "";
+  const link4 = byPosition.get(4)?.link ?? "";
+  const primaryThumb = byPosition.get(1)?.thumb ?? "";
 
   return {
     id: row.id,

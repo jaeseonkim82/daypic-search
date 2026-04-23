@@ -120,12 +120,9 @@ function transformArtist(record: AirtableRecord): ArtistRow | null {
     "portfolioImages",
   ]);
 
-  const videoStyleTagsValue = getField(fields, [
-    "video_style_tags",
-    "videoStyleTags",
-    "영상스타일태그",
-    "영상 스타일 태그",
-  ]);
+  // Phase 4.2 Contract: video_link_*/video_thumb_*/video_thumbnail/video_style_tags
+  // 는 artists 에서 DROP 되고 video_portfolio_items 로 이관됨. 이 스크립트는
+  // 1회성 레거시이므로 영상 필드 이관은 생략 (필요 시 별도 스크립트로 처리).
 
   return {
     id: record.id,
@@ -158,28 +155,6 @@ function transformArtist(record: AirtableRecord): ArtistRow | null {
       ...toArray(keywordValue),
     ].filter((v, i, arr) => v && arr.indexOf(v) === i),
     open_chat_url: toStringValue(openchatValue) || null,
-    video_link_1: toStringValue(getField(fields, ["video_link_1"])) || null,
-    video_link_2: toStringValue(getField(fields, ["video_link_2"])) || null,
-    video_link_3: toStringValue(getField(fields, ["video_link_3"])) || null,
-    video_link_4: toStringValue(getField(fields, ["video_link_4"])) || null,
-    video_thumbnail:
-      pickAttachmentUrl(
-        getField(fields, [
-          "video_thumbnail",
-          "videoThumbnail",
-          "영상썸네일",
-          "대표썸네일",
-        ])
-      ) || null,
-    video_thumb_1:
-      pickAttachmentUrl(getField(fields, ["video_thumb_1"])) || null,
-    video_thumb_2:
-      pickAttachmentUrl(getField(fields, ["video_thumb_2"])) || null,
-    video_thumb_3:
-      pickAttachmentUrl(getField(fields, ["video_thumb_3"])) || null,
-    video_thumb_4:
-      pickAttachmentUrl(getField(fields, ["video_thumb_4"])) || null,
-    video_style_tags: toArray(videoStyleTagsValue),
   };
 }
 

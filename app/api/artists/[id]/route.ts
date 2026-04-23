@@ -40,10 +40,7 @@ async function fetchVideoPortfolioItems(artistId: string): Promise<VideoItem[]> 
     .order("position", { ascending: true });
 
   if (error) {
-    console.warn(
-      "video_portfolio_items 조회 실패 (fallback to legacy columns):",
-      error.message
-    );
+    console.warn("video_portfolio_items 조회 실패:", error.message);
     return [];
   }
 
@@ -59,22 +56,18 @@ function normalizeArtist(row: ArtistRow, items: VideoItem[] = []) {
   const styleKeywords = row.style_keywords ?? [];
   const byPosition = new Map(items.map((item) => [item.position, item]));
 
-  // Phase 4.2: 관계 테이블이 source of truth. artists.video_* 는 fallback.
-  const link1 = byPosition.get(1)?.link ?? row.video_link_1 ?? "";
-  const link2 = byPosition.get(2)?.link ?? row.video_link_2 ?? "";
-  const link3 = byPosition.get(3)?.link ?? row.video_link_3 ?? "";
-  const link4 = byPosition.get(4)?.link ?? row.video_link_4 ?? "";
-  const thumb1 = byPosition.get(1)?.thumb ?? row.video_thumb_1 ?? "";
-  const thumb2 = byPosition.get(2)?.thumb ?? row.video_thumb_2 ?? "";
-  const thumb3 = byPosition.get(3)?.thumb ?? row.video_thumb_3 ?? "";
-  const thumb4 = byPosition.get(4)?.thumb ?? row.video_thumb_4 ?? "";
+  const link1 = byPosition.get(1)?.link ?? "";
+  const link2 = byPosition.get(2)?.link ?? "";
+  const link3 = byPosition.get(3)?.link ?? "";
+  const link4 = byPosition.get(4)?.link ?? "";
+  const thumb1 = byPosition.get(1)?.thumb ?? "";
+  const thumb2 = byPosition.get(2)?.thumb ?? "";
+  const thumb3 = byPosition.get(3)?.thumb ?? "";
+  const thumb4 = byPosition.get(4)?.thumb ?? "";
 
-  // style_tags: items 중 아무 position의 style_tags (전부 동일한 전역 태그 구조)
-  // 없으면 artists.video_style_tags 폴백
+  // items 중 아무 position의 style_tags (전부 동일한 전역 태그 구조)
   const videoStyleTags =
-    items.find((item) => item.style_tags.length > 0)?.style_tags ??
-    row.video_style_tags ??
-    [];
+    items.find((item) => item.style_tags.length > 0)?.style_tags ?? [];
 
   const videoLinks = [link1, link2, link3, link4].filter(Boolean);
 
@@ -115,7 +108,7 @@ function normalizeArtist(row: ArtistRow, items: VideoItem[] = []) {
 
     video_links: videoLinks,
 
-    video_thumbnail: row.video_thumbnail ?? thumb1,
+    video_thumbnail: thumb1,
     video_thumb_1: thumb1,
     video_thumb_2: thumb2,
     video_thumb_3: thumb3,
@@ -190,25 +183,10 @@ export async function PATCH(
 
     const updates: Partial<ArtistRow> = {};
 
-    const STRING_FIELDS = [
-      "phone",
-      "price",
-      "video_link_1",
-      "video_link_2",
-      "video_link_3",
-      "video_link_4",
-      "video_thumbnail",
-      "video_thumb_1",
-      "video_thumb_2",
-      "video_thumb_3",
-      "video_thumb_4",
-    ] as const;
-    const ARRAY_FIELDS = [
-      "service",
-      "region",
-      "style_keywords",
-      "video_style_tags",
-    ] as const;
+    // Phase 4.2 Contract: video_* 컬럼은 007에서 DROP 됐으므로
+    // 이 generic PATCH의 허용 목록에서 제외. 영상은 /video-portfolio 전용 라우트로.
+    const STRING_FIELDS = ["phone", "price"] as const;
+    const ARRAY_FIELDS = ["service", "region", "style_keywords"] as const;
 
     for (const field of STRING_FIELDS) {
       if (has(field)) {

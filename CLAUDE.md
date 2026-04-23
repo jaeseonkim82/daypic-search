@@ -59,7 +59,8 @@ supabase/
     ├── 003_orphan_fix_and_retry.sql   # 002 FK 추가 실패한 환경용 복구(artist_rec 혼종)
     ├── 004_hardening.sql              # artists_public view + anon revoke, UNIQUE(artist_id, closed_date)
     ├── 005_phase_4_2_video_expand.sql # video_portfolio_items 신규 + 동기화 트리거
-    └── 006_view_security_and_user_fk.sql # view security_invoker, artists.user_id FK
+    ├── 006_view_security_and_user_fk.sql # view security_invoker, artists.user_id FK
+    └── 007_phase_4_2_contract_drop.sql # artists.video_* DROP + 동기화 트리거/함수 제거 + artists_public 뷰 재생성
 ```
 
 ### 핵심 데이터 흐름 (검색)
@@ -144,6 +145,6 @@ AIRTABLE_BASE_ID=
 
 ## 향후 작업 (참고)
 
-- **Phase 4.2 Contract**: video_link_1..4 → `video_portfolio_items` 관계 테이블. 현재 Expand(DB + 동기화 트리거) 완료, 서버/클라 전환 남음
+- **Phase 4.2 Contract**: video_link_1..4 → `video_portfolio_items` 관계 테이블 이관 완료. artists의 구 컬럼 DROP(007). 서버 응답은 items 기반 파생이며, 레거시 스칼라 필드(`video_link_1..4`, `video_thumbnail`)는 클라이언트 호환을 위해 응답에만 유지. 클라이언트를 `video_portfolio_items` 직접 사용으로 전환 후 응답의 레거시 필드 제거 예정.
 - **Phase 5 RLS**: NextAuth JWT → Supabase JWT 서명 교환 + `auth.jwt()->>'kakao_id'` 기반 RLS. service_role 의존을 webhook/cron 전용으로 축소
 - **Supabase 타입 자동 생성**: `supabase gen types typescript`로 `ArtistRow` 등 수동 타입 대체

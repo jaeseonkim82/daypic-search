@@ -68,7 +68,14 @@ DROP TRIGGER IF EXISTS trg_artists_sync_video_portfolio ON artists;
 DROP FUNCTION IF EXISTS sync_video_portfolio_items();
 
 -- ============================================================
--- 4. artists 구 video 컬럼 DROP
+-- 4. artists_public 뷰 선제 DROP (컬럼 의존성 제거)
+--    — 004/006 에서 생성된 뷰가 video_* 컬럼을 참조하고 있으면
+--      이후 ALTER TABLE DROP COLUMN 이 막히므로 먼저 제거.
+-- ============================================================
+DROP VIEW IF EXISTS artists_public;
+
+-- ============================================================
+-- 5. artists 구 video 컬럼 DROP
 -- ============================================================
 ALTER TABLE artists
   DROP COLUMN IF EXISTS video_link_1,
@@ -83,10 +90,8 @@ ALTER TABLE artists
   DROP COLUMN IF EXISTS video_style_tags;
 
 -- ============================================================
--- 5. artists_public 뷰 재생성 (DROP 된 컬럼 제거)
+-- 6. artists_public 뷰 재생성 (DROP 된 컬럼 제외)
 -- ============================================================
-DROP VIEW IF EXISTS artists_public;
-
 CREATE VIEW artists_public
   WITH (security_invoker = on) AS
   SELECT
@@ -100,7 +105,7 @@ GRANT SELECT ON artists_public TO anon;
 GRANT SELECT ON artists_public TO authenticated;
 
 -- ============================================================
--- 6. 검증
+-- 7. 검증
 -- ============================================================
 SELECT 'artists columns after DROP' AS check, column_name
 FROM information_schema.columns
