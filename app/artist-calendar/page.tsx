@@ -2,6 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useMe } from "@/lib/queries/me";
+import {
+  useArtistClosed,
+  useAddClosedDate,
+  useDeleteClosedDate,
+} from "@/lib/queries/artist-closed";
 
 type CalendarDay = {
   date: string;
@@ -107,15 +112,11 @@ export default function ArtistCalendarPage() {
     return new Date(today.getFullYear(), today.getMonth(), 1);
   });
 
-  const [blockedDates, setBlockedDates] = useState<string[]>([]);
   const [selectedDate, setSelectedDate] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
   const days = useMemo(() => buildCalendarDays(currentMonth), [currentMonth]);
-  const isBlocked = selectedDate ? blockedDates.includes(selectedDate) : false;
 
   const { data: meData, isLoading: isMeLoading, isError: isMeError } = useMe();
 
@@ -147,96 +148,39 @@ export default function ArtistCalendarPage() {
     }
   }, [days, selectedDate]);
 
+  const closedQuery = useArtistClosed(sessionReady && !!sessionArtistId);
+  const blockedDates = closedQuery.data?.dates ?? [];
+  const isLoading = closedQuery.isLoading;
+  const isBlocked = selectedDate ? blockedDates.includes(selectedDate) : false;
+
   useEffect(() => {
-    async function loadBlockedDates() {
-      if (!sessionReady) return;
-      if (!sessionArtistId) return;
-
-      try {
-        setIsLoading(true);
-        setError("");
-        setMessage("");
-
-        const res = await fetchWithTimeout(
-          "/api/artist-closed",
-          { method: "GET", cache: "no-store" },
-          10000
-        );
-
-        const data = await res.json();
-
-        if (!res.ok || !data.ok) {
-          throw new Error(data.message || "일정 정보를 불러오지 못했어.");
-        }
-
-        setBlockedDates(Array.isArray(data.dates) ? data.dates : []);
-      } catch (err) {
-        if (err instanceof Error && err.name === "AbortError") {
-          setError("일정 조회가 너무 오래 걸려 중단됐어. 서버 상태를 확인해줘.");
-        } else {
-          setError(
-            err instanceof Error
-              ? err.message
-              : "일정 정보를 불러오는 중 오류가 발생했어."
-          );
-        }
-      } finally {
-        setIsLoading(false);
-      }
+    if (closedQuery.isError && closedQuery.error) {
+      const err = closedQuery.error;
+      setError(err instanceof Error ? err.message : "일정 정보를 불러오지 못했어.");
     }
+  }, [closedQuery.isError, closedQuery.error]);
 
-    loadBlockedDates();
-  }, [sessionReady, sessionArtistId]);
+  const addClosedMutation = useAddClosedDate();
+  const deleteClosedMutation = useDeleteClosedDate();
+  const isSaving = addClosedMutation.isPending || deleteClosedMutation.isPending;
 
   async function handleRegisterBlocked() {
     if (!selectedDate || !sessionArtistId || isSaving) return;
-
     try {
-      setIsSaving(true);
       setError("");
       setMessage("");
-
-      const res = await fetchWithTimeout(
-        "/api/artist-closed",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            date: selectedDate,
-          }),
-        },
-        10000
-      );
-
-      const data = await res.json();
-
-      if (!res.ok || !data.ok) {
-        throw new Error(data.message || "촬영 불가 날짜 등록에 실패했어.");
-      }
-
-      setBlockedDates((prev) =>
-        prev.includes(selectedDate) ? prev : [...prev, selectedDate]
-      );
-
+      const data = await addClosedMutation.mutateAsync(selectedDate);
       setMessage(
         data.duplicated
           ? "이미 등록된 촬영 불가 날짜야."
           : "촬영 불가 날짜가 등록되었어."
       );
     } catch (err) {
-      if (err instanceof Error && err.name === "AbortError") {
-        setError("등록 요청이 너무 오래 걸려 중단됐어.");
-      } else {
-        setError(
-          err instanceof Error
-            ? err.message
-            : "촬영 불가 날짜 등록 중 오류가 발생했어."
-        );
-      }
-    } finally {
-      setIsSaving(false);
+      setError(
+        err instanceof Error
+          ? err.message
+          : "촬영 불가 날짜 등록 중 오류가 발생했어."
+      );
     }
   }
 
@@ -244,38 +188,16 @@ export default function ArtistCalendarPage() {
     if (!selectedDate || !sessionArtistId || isSaving) return;
 
     try {
-      setIsSaving(true);
       setError("");
       setMessage("");
-
-      const res = await fetchWithTimeout(
-        `/api/artist-closed?date=${encodeURIComponent(selectedDate)}`,
-        {
-          method: "DELETE",
-        },
-        10000
-      );
-
-      const data = await res.json();
-
-      if (!res.ok || !data.ok) {
-        throw new Error(data.message || "촬영 불가 날짜 해제에 실패했어.");
-      }
-
-      setBlockedDates((prev) => prev.filter((date) => date !== selectedDate));
+      await deleteClosedMutation.mutateAsync(selectedDate);
       setMessage("촬영 불가 날짜가 해제되었어.");
     } catch (err) {
-      if (err instanceof Error && err.name === "AbortError") {
-        setError("해제 요청이 너무 오래 걸려 중단됐어.");
-      } else {
-        setError(
-          err instanceof Error
-            ? err.message
-            : "촬영 불가 날짜 해제 중 오류가 발생했어."
-        );
-      }
-    } finally {
-      setIsSaving(false);
+      setError(
+        err instanceof Error
+          ? err.message
+          : "촬영 불가 날짜 해제 중 오류가 발생했어."
+      );
     }
   }
 
