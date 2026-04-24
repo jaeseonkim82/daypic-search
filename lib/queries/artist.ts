@@ -13,7 +13,6 @@ export type VideoPortfolioItem = {
 
 export type ArtistDetail = {
   id: string;
-  artist_id: string;
   name: string;
   service: string[];
   region: string[];

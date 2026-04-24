@@ -61,7 +61,6 @@ function normalizeArtist(
 
   const base = {
     id: row.id,
-    artist_id: row.artist_id ?? "",
     name: row.name ?? "",
     service: row.service ?? [],
     region: row.region ?? [],

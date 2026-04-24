@@ -18,7 +18,6 @@ type VideoPortfolioItem = {
 
 type Artist = {
   id: string;
-  artist_id: string;
   name: string;
   service: string[];
   region: string[];
@@ -52,7 +51,6 @@ function artistRowToResponse(
 ): Artist {
   return {
     id: row.id,
-    artist_id: row.artist_id ?? "",
     name: row.name,
     service: row.service ?? [],
     region: row.region ?? [],

@@ -8,7 +8,6 @@ export type MeResponse = {
   ok: boolean;
   userId: string | null;
   artistId: string | null;
-  artistCode?: string | null;
   kakaoId: string | null;
   email: string | null;
   name: string | null;

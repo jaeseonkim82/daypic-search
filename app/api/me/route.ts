@@ -19,7 +19,7 @@ async function findArtistByToken(token: Token) {
   if (token.artistId) {
     const { data, error } = await supabase
       .from("artists")
-      .select("id, artist_id, name, email")
+      .select("id, name, email")
       .eq("id", token.artistId)
       .maybeSingle();
     if (error) {
@@ -57,7 +57,6 @@ export async function GET(req: NextRequest) {
         ok: true,
         userId: null,
         artistId: null,
-        artistCode: null,
         kakaoId: null,
         email: null,
         name: null,
@@ -71,7 +70,6 @@ export async function GET(req: NextRequest) {
   const artistRecord = await findArtistByToken(token);
 
   const artistId = artistRecord?.id ?? null;
-  const artistCode = artistRecord?.artist_id ?? null;
   const artistName = artistRecord?.name ?? null;
   const artistEmail = artistRecord?.email ?? null;
 
@@ -80,7 +78,6 @@ export async function GET(req: NextRequest) {
       ok: true,
       userId: token.userId ?? null,
       artistId,
-      artistCode,
       kakaoId: token.kakaoId ?? null,
       email: artistEmail ?? token.email ?? null,
       name: artistName ?? token.name ?? null,

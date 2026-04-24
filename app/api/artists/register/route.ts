@@ -190,7 +190,6 @@ export async function POST(request: NextRequest) {
       message: "작가 정보가 등록되었습니다.",
       artist: {
         id: data.id,
-        artist_id: data.artist_id,
         name: data.name,
         email: data.email,
         phone: data.phone,
