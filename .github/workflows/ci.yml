@@ -69,3 +69,27 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 7
+
+  types-drift:
+    runs-on: ubuntu-latest
+    needs: lint-and-build
+    # SUPABASE_ACCESS_TOKEN 이 없으면 이 job 은 skip (PR 시).
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Regenerate types from live Supabase
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: npm run gen:types
+      - name: Fail if lib/database.types.ts drifted
+        run: |
+          if ! git diff --exit-code lib/database.types.ts; then
+            echo "::error::lib/database.types.ts 가 실제 Supabase 스키마와 다름. 로컬에서 'npm run gen:types' 실행 후 커밋하세요."
+            exit 1
+          fi

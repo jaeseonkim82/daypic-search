@@ -98,36 +98,35 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseAdmin();
 
-    const { data: existing } = await supabase
+    // closed_dates_artist_date_uniq (artist_id, closed_date) UNIQUE 활용.
+    // 기존: SELECT → INSERT 2회 (race 가능). 신규: INSERT ON CONFLICT 1회 + RPC 없이 upsert.
+    const recordId = makeRecordId();
+    const { data, error } = await supabase
       .from("closed_dates")
-      .select("id")
-      .eq("artist_id", artistRowId)
-      .eq("closed_date", date)
+      .upsert(
+        {
+          id: recordId,
+          artist_id: artistRowId,
+          closed_date: date,
+        },
+        { onConflict: "artist_id,closed_date", ignoreDuplicates: true },
+      )
+      .select("id, artist_id, closed_date")
       .maybeSingle();
 
-    if (existing) {
+    if (error) {
+      throw new Error(`Supabase 등록 실패: ${error.message}`);
+    }
+
+    // ignoreDuplicates=true 이므로 충돌 시 data=null. 이미 존재로 간주.
+    const duplicated = !data;
+    if (duplicated) {
       return NextResponse.json({
         ok: true,
         duplicated: true,
         message: "이미 등록된 촬영 불가 날짜야.",
         date,
       });
-    }
-
-    const recordId = makeRecordId();
-
-    const { data, error } = await supabase
-      .from("closed_dates")
-      .insert({
-        id: recordId,
-        artist_id: artistRowId,
-        closed_date: date,
-      })
-      .select("id, artist_id, closed_date")
-      .single();
-
-    if (error) {
-      throw new Error(`Supabase 등록 실패: ${error.message}`);
     }
 
     return NextResponse.json({
