@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useSearchArtists, type SearchParams } from "@/lib/queries/search";
 
 type VideoPortfolioItem = {
   position: number;
@@ -42,9 +43,7 @@ type SearchPageState = {
   selectedServices: string[];
   region: string;
   price: string;
-  artists: Artist[];
-  hasSearched: boolean;
-  message: string;
+  appliedParams: SearchParams | null;
   scrollY: number;
 };
 
@@ -239,12 +238,9 @@ export default function HomePage() {
   const [region, setRegion] = useState("");
   const [price, setPrice] = useState("");
 
-  const [artists, setArtists] = useState<Artist[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [hasSearched, setHasSearched] = useState(false);
-  const [message, setMessage] = useState(
-    "예식 날짜와 조건을 입력하면 촬영 가능한 작가를 바로 찾아볼 수 있어요."
-  );
+  // 버튼 클릭으로 "적용된" 검색 파라미터. 쿼리 훅은 이 값으로 자동 fetch.
+  const [appliedParams, setAppliedParams] = useState<SearchParams | null>(null);
+  const [submitError, setSubmitError] = useState("");
 
   const [recentArtists, setRecentArtists] = useState<SavedArtist[]>([]);
   const [favoriteArtists, setFavoriteArtists] = useState<SavedArtist[]>([]);
@@ -285,12 +281,7 @@ export default function HomePage() {
       setSelectedServices(savedPageState.selectedServices || []);
       setRegion(savedPageState.region || "");
       setPrice(savedPageState.price || "");
-      setArtists(Array.isArray(savedPageState.artists) ? savedPageState.artists : []);
-      setHasSearched(!!savedPageState.hasSearched);
-      setMessage(
-        savedPageState.message ||
-        "예식 날짜와 조건을 입력하면 촬영 가능한 작가를 바로 찾아볼 수 있어요."
-      );
+      setAppliedParams(savedPageState.appliedParams ?? null);
       pendingScrollRestoreRef.current =
         typeof savedPageState.scrollY === "number" ? savedPageState.scrollY : 0;
     }
@@ -322,6 +313,36 @@ export default function HomePage() {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
+
+  // TanStack Query: appliedParams 변경 시 자동 fetch. 동일 키 재접근은 캐시에서 즉시.
+  const searchQuery = useSearchArtists(appliedParams, {
+    enabled: !!appliedParams?.date,
+  });
+
+  const artists = useMemo<Artist[]>(() => {
+    if (!searchQuery.data?.artists) return [];
+    return searchQuery.data.artists.map((item) =>
+      normalizeArtistFromApi(item as Record<string, unknown>),
+    );
+  }, [searchQuery.data]);
+
+  const loading = searchQuery.isLoading || searchQuery.isFetching;
+  const hasSearched = !!appliedParams;
+
+  const message = useMemo(() => {
+    if (submitError) return submitError;
+    if (!appliedParams) {
+      return "예식 날짜와 조건을 입력하면 촬영 가능한 작가를 바로 찾아볼 수 있어요.";
+    }
+    if (loading) return "가능한 작가를 찾는 중이예요...";
+    if (searchQuery.isError) {
+      return searchQuery.error instanceof Error
+        ? searchQuery.error.message
+        : "검색 중 오류가 발생했어요.";
+    }
+    if (artists.length === 0) return "조건에 맞는 작가가 없어요.";
+    return `총 ${artists.length}명의 작가를 찾았어요.`;
+  }, [submitError, appliedParams, loading, searchQuery.isError, searchQuery.error, artists.length]);
 
   const displayArtists = useMemo(() => {
     return artists.map((artist) => {
@@ -370,9 +391,7 @@ export default function HomePage() {
       selectedServices,
       region,
       price,
-      artists,
-      hasSearched,
-      message,
+      appliedParams,
       scrollY: typeof scrollY === "number" ? scrollY : window.scrollY || 0,
     };
 
@@ -382,7 +401,7 @@ export default function HomePage() {
   useEffect(() => {
     if (!initialRestoreDoneRef.current) return;
     saveSearchPageState();
-  }, [date, selectedServices, region, price, artists, hasSearched, message]);
+  }, [date, selectedServices, region, price, appliedParams]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -396,7 +415,7 @@ export default function HomePage() {
     return () => {
       window.removeEventListener("scroll", onScroll);
     };
-  }, [date, selectedServices, region, price, artists, hasSearched, message]);
+  }, [date, selectedServices, region, price, appliedParams]);
 
   useEffect(() => {
     if (pendingScrollRestoreRef.current === null) return;
@@ -511,59 +530,19 @@ export default function HomePage() {
     writeStorage(window.localStorage, FAVORITE_STORAGE_KEY, nextFavorites);
   }
 
-  async function handleSearch() {
+  function handleSearch() {
     if (!date) {
-      setArtists([]);
-      setHasSearched(false);
-      setMessage("먼저 예식 날짜를 입력해주세요.");
+      setAppliedParams(null);
+      setSubmitError("먼저 예식 날짜를 입력해주세요.");
       return;
     }
-
-    setLoading(true);
-    setHasSearched(true);
-    setMessage("가능한 작가를 찾는 중이예요...");
-
-    try {
-      const params = new URLSearchParams();
-      params.set("date", date);
-
-      if (region) params.set("region", region);
-      if (price) params.set("price", price);
-
-      selectedServices.forEach((service) => {
-        params.append("service", service);
-      });
-
-      const response = await fetch(`/api/search?${params.toString()}`, {
-        cache: "no-store",
-      });
-
-      const data = await response.json();
-
-      if (!response.ok || !data.ok) {
-        throw new Error(data.message || "검색 중 오류가 발생했어요.");
-      }
-
-      const normalizedArtists: Artist[] = Array.isArray(data.artists)
-        ? data.artists.map((item: Record<string, any>) => normalizeArtistFromApi(item))
-        : [];
-
-      setArtists(normalizedArtists);
-
-      if (normalizedArtists.length === 0) {
-        setMessage("조건에 맞는 작가가 없어요.");
-      } else {
-        setMessage(`총 ${normalizedArtists.length}명의 작가를 찾았어요.`);
-      }
-    } catch (error) {
-      console.error(error);
-      setArtists([]);
-      setMessage(
-        error instanceof Error ? error.message : "알 수 없는 오류가 발생했어."
-      );
-    } finally {
-      setLoading(false);
-    }
+    setSubmitError("");
+    setAppliedParams({
+      date,
+      region: region || undefined,
+      price: price || undefined,
+      services: selectedServices.length > 0 ? selectedServices : undefined,
+    });
   }
 
   function handleChecklistClick() {
