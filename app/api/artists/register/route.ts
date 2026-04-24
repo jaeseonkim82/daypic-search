@@ -3,6 +3,11 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 import { getAuthSession } from "@/lib/auth-helpers";
 import { serverError } from "@/lib/error-response";
 import { makeRecordId, makeArtistCode } from "@/lib/ids";
+import {
+  checkRateLimit,
+  rateLimitedResponse,
+  rateLimiters,
+} from "@/lib/rate-limit";
 
 type RegisterArtistRequest = {
   companyName?: string;
@@ -35,6 +40,12 @@ export async function POST(request: NextRequest) {
         { status: 401 }
       );
     }
+
+    const rl = await checkRateLimit(
+      rateLimiters.mutation,
+      `kakao:${session.kakaoId}`,
+    );
+    if (!rl.ok) return rateLimitedResponse(rl);
 
     const body = (await request.json()) as RegisterArtistRequest;
 

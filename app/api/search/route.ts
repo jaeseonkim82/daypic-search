@@ -2,6 +2,12 @@ import { NextResponse } from "next/server";
 import { getSupabaseAdmin, ArtistRow } from "@/lib/supabase";
 import { formatDateToYMD } from "@/lib/date-utils";
 import { serverError } from "@/lib/error-response";
+import {
+  checkRateLimit,
+  getClientIp,
+  rateLimitedResponse,
+  rateLimiters,
+} from "@/lib/rate-limit";
 
 type VideoPortfolioItem = {
   position: number;
@@ -156,6 +162,9 @@ async function searchArtists(
 
 export async function GET(request: Request) {
   try {
+    const rl = await checkRateLimit(rateLimiters.search, getClientIp(request));
+    if (!rl.ok) return rateLimitedResponse(rl);
+
     const { searchParams } = new URL(request.url);
 
     const date = formatDateToYMD(searchParams.get("date") || "");

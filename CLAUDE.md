@@ -128,6 +128,11 @@ NEXTAUTH_URL=http://localhost:3001
 CLOUDINARY_CLOUD_NAME=
 CLOUDINARY_API_KEY=
 CLOUDINARY_API_SECRET=
+
+# Rate Limit (optional — Upstash Redis)
+# 둘 다 설정되면 rate limiter 자동 활성. 미설정 시 no-op (dev/local 편의).
+UPSTASH_REDIS_REST_URL=
+UPSTASH_REDIS_REST_TOKEN=
 ```
 
 ## 코딩 컨벤션

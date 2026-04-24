@@ -3,6 +3,11 @@ import crypto from "crypto";
 import { getAuthSession } from "@/lib/auth-helpers";
 import { findArtistRow } from "@/lib/artist-lookup";
 import { serverError } from "@/lib/error-response";
+import {
+  checkRateLimit,
+  rateLimitedResponse,
+  rateLimiters,
+} from "@/lib/rate-limit";
 
 const ALLOWED_FOLDERS = new Set([
   "daypic/artists/representative",
@@ -28,6 +33,13 @@ export async function POST(request: NextRequest) {
         { status: 403 }
       );
     }
+
+    // 작가 1명당 분당 20회 제한 (Cloudinary 쿼터 보호)
+    const rl = await checkRateLimit(
+      rateLimiters.cloudinarySign,
+      `artist:${artist.id}`,
+    );
+    if (!rl.ok) return rateLimitedResponse(rl);
 
     const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
     const apiKey = process.env.CLOUDINARY_API_KEY;

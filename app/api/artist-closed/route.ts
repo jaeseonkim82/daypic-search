@@ -5,6 +5,11 @@ import { findArtistRow } from "@/lib/artist-lookup";
 import { formatDateToYMD } from "@/lib/date-utils";
 import { serverError } from "@/lib/error-response";
 import { makeRecordId } from "@/lib/ids";
+import {
+  checkRateLimit,
+  rateLimitedResponse,
+  rateLimiters,
+} from "@/lib/rate-limit";
 
 async function resolveArtistContext(request: NextRequest) {
   const session = await getAuthSession(request);
@@ -74,6 +79,12 @@ export async function POST(request: NextRequest) {
         { status: 401 }
       );
     }
+
+    const rl = await checkRateLimit(
+      rateLimiters.mutation,
+      `artist:${artistRowId}`,
+    );
+    if (!rl.ok) return rateLimitedResponse(rl);
 
     const body = await request.json();
     const date = formatDateToYMD(String(body.date || ""));
@@ -148,6 +159,12 @@ export async function DELETE(request: NextRequest) {
         { status: 401 }
       );
     }
+
+    const rl = await checkRateLimit(
+      rateLimiters.mutation,
+      `artist:${artistRowId}`,
+    );
+    if (!rl.ok) return rateLimitedResponse(rl);
 
     const date = formatDateToYMD(
       request.nextUrl.searchParams.get("date") || ""
