@@ -68,6 +68,8 @@ const handler = NextAuth({
   secret: process.env.NEXTAUTH_SECRET,
   session: {
     strategy: "jwt",
+    maxAge: 60 * 60 * 24 * 7, // 7일
+    updateAge: 60 * 60 * 24, // 하루마다 토큰 갱신
   },
   debug: process.env.NODE_ENV !== "production",
   pages: {

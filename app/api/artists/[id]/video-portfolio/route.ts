@@ -51,6 +51,8 @@ export async function PATCH(
       );
     }
 
+    // 현재 UI는 position 1~4 만 사용. 서버도 동일 범위로 제한해
+    // 악성 클라이언트의 유령 데이터(5+) 누적 차단. UI 확장 시 상향.
     const slotInputs: Array<{ position: number; link: string; thumb: string }> =
       (body.items as Array<Record<string, unknown>>)
         .map((raw) => ({
@@ -58,11 +60,11 @@ export async function PATCH(
           link: sanitizeString(raw.link),
           thumb: sanitizeString(raw.thumb),
         }))
-        .filter((s) => s.position >= 1 && s.position <= 10);
+        .filter((s) => s.position >= 1 && s.position <= 4);
 
     if (slotInputs.length === 0) {
       return NextResponse.json(
-        { ok: false, error: "유효한 position(1~10)이 있는 item이 필요해." },
+        { ok: false, error: "유효한 position(1~4)이 있는 item이 필요해." },
         { status: 400 },
       );
     }

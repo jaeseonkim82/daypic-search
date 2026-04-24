@@ -207,13 +207,15 @@ function ArtistUploadPageInner() {
       throw new Error(signData?.error || "Cloudinary 서명 요청에 실패했습니다.");
     }
 
-    const { cloudName, apiKey, timestamp, folder, signature } = signData;
+    const { cloudName, apiKey, timestamp, folder, publicId, signature } =
+      signData;
 
     const formData = new FormData();
     formData.append("file", file);
     formData.append("api_key", apiKey);
     formData.append("timestamp", String(timestamp));
     formData.append("folder", folder);
+    if (publicId) formData.append("public_id", publicId);
     formData.append("signature", signature);
 
     const uploadRes = await fetch(
