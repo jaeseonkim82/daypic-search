@@ -246,7 +246,50 @@ export type Database = {
       }
     }
     Functions: {
-      [_ in never]: never
+      register_artist: {
+        Args: {
+          p_artist_id: string
+          p_email: string
+          p_id: string
+          p_kakao_id: string
+          p_name: string
+          p_open_chat_url: string
+          p_phone: string
+          p_portfolio: string
+          p_price: string
+          p_region: string[]
+          p_service: string[]
+          p_style_keywords: string[]
+          p_user_id: string
+        }
+        Returns: {
+          artist_id: string | null
+          artist_type: string | null
+          created_at: string | null
+          email: string | null
+          id: string
+          image: string | null
+          kakao_id: string | null
+          name: string
+          open_chat_url: string | null
+          phone: string | null
+          portfolio: string | null
+          portfolio_images: string[] | null
+          price: string | null
+          rating: number | null
+          region: string[] | null
+          service: string[] | null
+          style_keywords: string[] | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "artists"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
     }
     Enums: {
       [_ in never]: never

@@ -123,48 +123,23 @@ export async function POST(request: NextRequest) {
     const id = makeRecordId();
     const artistCode = makeArtistCode();
 
-    // users는 항상 세션 사용자 기준으로 먼저 보장 (FK 대비)
-    const { error: userError } = await supabase
-      .from("users")
-      .upsert(
-        {
-          id: userId,
-          kakao_id: kakaoId,
-          email: normalizedEmail,
-          name: companyName,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "id" }
-      );
-
-    if (userError) {
-      console.error("Supabase user upsert 오류:", userError);
-      return NextResponse.json(
-        { error: "사용자 정보 저장 실패" },
-        { status: 500 }
-      );
-    }
-
-    const { data, error } = await supabase
-      .from("artists")
-      .insert({
-        id,
-        artist_id: artistCode,
-        user_id: userId,
-        kakao_id: kakaoId,
-        name: companyName,
-        email: normalizedEmail,
-        phone,
-        service: services,
-        region: regions,
-        price,
-        style_keywords: styleKeywords,
-        portfolio: portfolioUrl,
-        open_chat_url: openchatUrl,
-        rating: 4.8,
-      })
-      .select()
-      .single();
+    // 008 마이그레이션: users upsert + artists insert 를 단일 트랜잭션으로 묶는 RPC.
+    // 중간 실패 시 users 만 남는 half-registered 상태 방지.
+    const { data, error } = await supabase.rpc("register_artist", {
+      p_id: id,
+      p_artist_id: artistCode,
+      p_user_id: userId,
+      p_kakao_id: kakaoId,
+      p_email: normalizedEmail,
+      p_name: companyName,
+      p_phone: phone,
+      p_service: services,
+      p_region: regions,
+      p_price: price,
+      p_style_keywords: styleKeywords,
+      p_portfolio: portfolioUrl,
+      p_open_chat_url: openchatUrl,
+    });
 
     if (error) {
       console.error("Supabase 작가 등록 오류:", error);
