@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSearchArtists, type SearchParams } from "@/lib/queries/search";
+import { normalizeArray, joinLabel } from "@/lib/normalize";
 
 type VideoPortfolioItem = {
   position: number;
@@ -67,41 +68,10 @@ const PRICES = ["10~50만원", "50~100만원", "100~150만원", "150~200만원"]
 
 const PLACEHOLDER_IMAGE = "/placeholder-artist.svg";
 
-const DEFAULT_KEYWORDS = [
-  "친절",
-  "자연스러움",
-  "편안한 진행",
-  "소통 좋음",
-  "감성 톤",
-  "센스 있음",
-];
-
 const RECENT_STORAGE_KEY = "daypic_recent_artists";
 const FAVORITE_STORAGE_KEY = "daypic_favorite_artists";
 const DETAIL_STORAGE_KEY = "daypic_artist_detail_cache";
 const SEARCH_PAGE_STATE_KEY = "daypic_search_page_state";
-
-function joinLabel(value: string[] | string | undefined) {
-  if (!value) return "";
-  return Array.isArray(value) ? value.join(" · ") : value;
-}
-
-function normalizeArray(value: unknown): string[] {
-  if (!value) return [];
-
-  if (Array.isArray(value)) {
-    return value.map((item) => String(item).trim()).filter(Boolean);
-  }
-
-  if (typeof value === "string") {
-    return value
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean);
-  }
-
-  return [];
-}
 
 function parseStorage<T>(storage: Storage, key: string, fallback: T): T {
   try {
@@ -346,10 +316,8 @@ export default function HomePage() {
 
   const displayArtists = useMemo(() => {
     return artists.map((artist) => {
-      const safeKeywords =
-        artist.style_keywords && artist.style_keywords.length > 0
-          ? artist.style_keywords
-          : DEFAULT_KEYWORDS;
+      // 데이터 정직: 작가가 입력한 style_keywords 만 노출. 하드코딩 폴백 없음.
+      const safeKeywords = artist.style_keywords ?? [];
 
       const primaryThumb = getPrimaryVideoThumb(artist);
 

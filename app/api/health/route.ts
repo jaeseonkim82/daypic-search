@@ -32,7 +32,7 @@ export async function GET() {
     await probe("artists", async () => {
       const { error } = await supabase
         .from("artists")
-        .select("id", { head: true, count: "exact" })
+        .select("id", { head: true })
         .limit(1);
       if (error) throw new Error(error.message);
     });
@@ -40,7 +40,7 @@ export async function GET() {
     await probe("closed_dates", async () => {
       const { error } = await supabase
         .from("closed_dates")
-        .select("id", { head: true, count: "exact" })
+        .select("id", { head: true })
         .limit(1);
       if (error) throw new Error(error.message);
     });
@@ -48,7 +48,7 @@ export async function GET() {
     await probe("video_portfolio_items", async () => {
       const { error } = await supabase
         .from("video_portfolio_items")
-        .select("artist_id", { head: true, count: "exact" })
+        .select("artist_id", { head: true })
         .limit(1);
       if (error) throw new Error(error.message);
     });

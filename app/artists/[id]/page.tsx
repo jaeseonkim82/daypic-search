@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useArtistDetail } from "@/lib/queries/artist";
+import { normalizeArray, joinLabel } from "@/lib/normalize";
 
 type VideoPortfolioItem = {
   position: number;
@@ -42,51 +43,6 @@ const RECENT_STORAGE_KEY = "daypic_recent_artists";
 const FAVORITE_STORAGE_KEY = "daypic_favorite_artists";
 const FALLBACK_IMAGE = "/placeholder-artist.svg";
 
-function normalizeArray(value: unknown): string[] {
-  if (!value) return [];
-
-  if (Array.isArray(value)) {
-    return value
-      .map((item) => {
-        if (typeof item === "string") return item.trim();
-
-        if (
-          item &&
-          typeof item === "object" &&
-          "url" in item &&
-          typeof (item as { url?: unknown }).url === "string"
-        ) {
-          return (item as { url: string }).url.trim();
-        }
-
-        if (
-          item &&
-          typeof item === "object" &&
-          "secure_url" in item &&
-          typeof (item as { secure_url?: unknown }).secure_url === "string"
-        ) {
-          return (item as { secure_url: string }).secure_url.trim();
-        }
-
-        return "";
-      })
-      .filter(Boolean);
-  }
-
-  if (typeof value === "string") {
-    return value
-      .split(/\r?\n|,/)
-      .map((item) => item.trim())
-      .filter(Boolean);
-  }
-
-  return [];
-}
-
-function joinLabel(value: string[] | string | undefined) {
-  if (!value) return "";
-  return Array.isArray(value) ? value.join(" · ") : value;
-}
 
 function normalizeExternalUrl(url: string) {
   const value = (url || "").trim();

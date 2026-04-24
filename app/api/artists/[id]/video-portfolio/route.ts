@@ -43,6 +43,23 @@ export async function PATCH(
 
     const body = await req.json();
 
+    // 낙관적 락 (opt-in): 클라이언트가 expected_updated_at 을 보내면
+    // artists.updated_at 과 비교해 불일치 시 409. artists PATCH 와 동일 컨트랙트.
+    if (Object.prototype.hasOwnProperty.call(body, "expected_updated_at")) {
+      const expected = String(body.expected_updated_at ?? "");
+      const current = (artistRow.updated_at ?? "").toString();
+      if (expected && current && expected !== current) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: "다른 기기에서 먼저 저장되어, 새로고침 후 다시 시도해줘.",
+            current_updated_at: current,
+          },
+          { status: 409 },
+        );
+      }
+    }
+
     // Phase 4.2 Contract: items 배열만 수용. 레거시 video_link_N / video_thumb_N 제거.
     if (!Array.isArray(body.items)) {
       return NextResponse.json(
