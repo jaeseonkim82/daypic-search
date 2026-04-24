@@ -1,61 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
 import DbErrorBanner from "@/app/components/DbErrorBanner";
-
-type MeResponse = {
-  isLoggedIn: boolean;
-  isArtist?: boolean;
-  artistId?: string;
-  artistCode?: string;
-  kakaoId?: string;
-  email?: string;
-  name?: string;
-  dbError?: boolean;
-};
+import { useMe } from "@/lib/queries/me";
 
 export default function MyPage() {
-  const [me, setMe] = useState<MeResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let ignore = false;
-
-    const fetchMe = async () => {
-      try {
-        const res = await fetch("/api/me", {
-          method: "GET",
-          credentials: "include",
-          cache: "no-store",
-        });
-
-        const data = await res.json();
-
-        if (!ignore) {
-          setMe(data);
-        }
-      } catch (error) {
-        console.error("마이페이지 사용자 정보 조회 실패:", error);
-
-        if (!ignore) {
-          setMe({
-            isLoggedIn: false,
-          });
-        }
-      } finally {
-        if (!ignore) {
-          setLoading(false);
-        }
-      }
-    };
-
-    fetchMe();
-
-    return () => {
-      ignore = true;
-    };
-  }, []);
+  const { data: me, isLoading: loading } = useMe();
 
   if (loading) {
     return (

@@ -2,17 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-
-type MeResponse = {
-  ok?: boolean;
-  isLoggedIn: boolean;
-  isArtist?: boolean;
-  artistId?: string | null;
-  artistCode?: string | null;
-  kakaoId?: string | null;
-  email?: string | null;
-  name?: string | null;
-};
+import { useMe } from "@/lib/queries/me";
 
 type VideoPortfolioItem = {
   position: number;
@@ -219,7 +209,10 @@ export default function VideoUploadPage() {
     };
   }, [thumbPreviewUrl1, thumbPreviewUrl2, thumbPreviewUrl3, thumbPreviewUrl4]);
 
+  const { data: meData, isLoading: isMeLoading } = useMe();
+
   useEffect(() => {
+    if (isMeLoading) return;
     let ignore = false;
 
     async function loadSessionAndArtist() {
@@ -229,15 +222,7 @@ export default function VideoUploadPage() {
         setError("");
         setMessage("");
 
-        const meRes = await fetch("/api/me", {
-          method: "GET",
-          credentials: "include",
-          cache: "no-store",
-        });
-
-        const meData: MeResponse = await meRes.json();
-
-        if (!meRes.ok || !meData.isLoggedIn) {
+        if (!meData || !meData.isLoggedIn) {
           window.location.href = "/login";
           return;
         }
@@ -311,7 +296,7 @@ export default function VideoUploadPage() {
     return () => {
       ignore = true;
     };
-  }, []);
+  }, [isMeLoading, meData]);
 
   const makeThumbnailChangeHandler =
     (setter: React.Dispatch<React.SetStateAction<File | null>>) =>

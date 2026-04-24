@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useMe } from "@/lib/queries/me";
 
 type CalendarDay = {
   date: string;
@@ -116,37 +117,28 @@ export default function ArtistCalendarPage() {
   const days = useMemo(() => buildCalendarDays(currentMonth), [currentMonth]);
   const isBlocked = selectedDate ? blockedDates.includes(selectedDate) : false;
 
+  const { data: meData, isLoading: isMeLoading, isError: isMeError } = useMe();
+
   useEffect(() => {
-    async function loadSession() {
-      try {
-        setError("");
-
-        const res = await fetchWithTimeout("/api/me", { cache: "no-store" }, 10000);
-        const data: MeResponse = await res.json();
-
-        if (!res.ok || !data.ok || !data.isLoggedIn) {
-          window.location.href = "/login";
-          return;
-        }
-
-        if (!data.isArtist || !data.artistId) {
-          window.location.href = "/artist-register";
-          return;
-        }
-
-        setSessionArtistId(data.artistId);
-        setSessionEmail(data.email || "");
-        setDbError(data.dbError === true);
-      } catch (err) {
-        window.location.href = "/login";
-        return;
-      } finally {
-        setSessionReady(true);
-      }
+    if (isMeLoading) return;
+    setError("");
+    if (isMeError || !meData) {
+      window.location.href = "/login";
+      return;
     }
-
-    loadSession();
-  }, []);
+    if (!meData.isLoggedIn) {
+      window.location.href = "/login";
+      return;
+    }
+    if (!meData.isArtist || !meData.artistId) {
+      window.location.href = "/artist-register";
+      return;
+    }
+    setSessionArtistId(meData.artistId);
+    setSessionEmail(meData.email || "");
+    setDbError(meData.dbError === true);
+    setSessionReady(true);
+  }, [isMeLoading, isMeError, meData]);
 
   useEffect(() => {
     if (!selectedDate && days.length > 0) {

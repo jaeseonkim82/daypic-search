@@ -2,17 +2,7 @@
 
 import Link from "next/link";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
-
-type MeResponse = {
-  isLoggedIn: boolean;
-  isArtist: boolean;
-  artistId?: string | null;
-  kakaoId?: string | null;
-  userId?: string | null;
-  email?: string | null;
-  name?: string | null;
-  error?: string;
-};
+import { useMe } from "@/lib/queries/me";
 
 type ArtistDetailResponse = {
   id: string;
@@ -101,7 +91,10 @@ function ArtistUploadPageInner() {
     return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
   }
 
+  const { data: meData, isLoading: isMeLoading } = useMe();
+
   useEffect(() => {
+    if (isMeLoading) return;
     const initArtist = async () => {
       try {
         setIsFindingArtist(true);
@@ -109,14 +102,7 @@ function ArtistUploadPageInner() {
         setError("");
         setMessage("");
 
-        const meRes = await fetch("/api/me", {
-          method: "GET",
-          cache: "no-store",
-        });
-
-        const meData: MeResponse = await meRes.json();
-
-        if (!meRes.ok || !meData.isLoggedIn) {
+        if (!meData || !meData.isLoggedIn) {
           window.location.href = "/login";
           return;
         }
@@ -164,7 +150,7 @@ function ArtistUploadPageInner() {
     };
 
     initArtist();
-  }, []);
+  }, [isMeLoading, meData]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(e.target.files || []);

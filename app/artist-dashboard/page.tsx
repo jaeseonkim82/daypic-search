@@ -1,87 +1,35 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import DbErrorBanner from "@/app/components/DbErrorBanner";
-
-type MeResponse = {
-  ok: boolean;
-  userId: string | null;
-  artistId: string | null;
-  kakaoId: string | null;
-  email: string | null;
-  name: string | null;
-  isLoggedIn: boolean;
-  isArtist: boolean;
-  services?: string[];
-  dbError?: boolean;
-};
+import { useMe } from "@/lib/queries/me";
 
 const ADMIN_INQUIRY_URL = "https://pf.kakao.com/_YOUR_CHANNEL_LINK";
 
 const headerButtonClass =
   "inline-flex h-[44px] min-w-[116px] items-center justify-center rounded-full border border-[#dccff2] bg-white px-5 text-[14px] font-semibold text-[#4d426b] transition-colors duration-200 hover:border-[#2c2448] hover:bg-[#2c2448] hover:text-white active:border-[#2c2448] active:bg-[#2c2448] active:text-white";
 
-async function fetchWithTimeout(
-  input: RequestInfo | URL,
-  init?: RequestInit,
-  timeout = 10000
-) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeout);
-
-  try {
-    const response = await fetch(input, {
-      ...init,
-      signal: controller.signal,
-    });
-    return response;
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
 export default function ArtistDashboardPage() {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [artistName, setArtistName] = useState("");
-  const [artistId, setArtistId] = useState("");
-  const [email, setEmail] = useState("");
-  const [services, setServices] = useState<string[]>([]);
-  const [dbError, setDbError] = useState(false);
+  const { data: me, isLoading: loading, isError } = useMe();
+
+  const artistName = me?.name || "작가님";
+  const artistId = me?.artistId || "";
+  const email = me?.email || "";
+  const services: string[] = [];
+  const dbError = me?.dbError === true;
+  const error = isError ? "사용자 정보를 불러오지 못했어." : "";
 
   useEffect(() => {
-    async function loadSession() {
-      try {
-        setError("");
-
-        const res = await fetchWithTimeout("/api/me", { cache: "no-store" }, 10000);
-        const data: MeResponse = await res.json();
-
-        if (!res.ok || !data.ok || !data.isLoggedIn) {
-  window.location.href = "/login";
-  return;
-}
-
-if (!data.isArtist) {
-  window.location.href = "/artist-register";
-  return;
-}
-
-        setArtistName(data.name || "작가님");
-        setArtistId(data.artistId || "");
-        setEmail(data.email || "");
-        setServices(data.services || []);
-        setDbError(data.dbError === true);
-      } catch (err) {
-        window.location.href = "/api/auth/signin";
-      } finally {
-        setLoading(false);
-      }
+    if (loading) return;
+    if (!me || !me.isLoggedIn) {
+      window.location.href = "/login";
+      return;
     }
-
-    loadSession();
-  }, []);
+    if (!me.isArtist) {
+      window.location.href = "/artist-register";
+    }
+  }, [loading, me]);
 
   if (loading) {
     return (

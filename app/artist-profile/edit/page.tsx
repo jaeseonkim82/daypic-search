@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useMe } from "@/lib/queries/me";
 import DbErrorBanner from "@/app/components/DbErrorBanner";
 
 const SERVICE_OPTIONS = [
@@ -68,16 +69,6 @@ const STYLE_OPTIONS = [
   "유쾌한 진행",
   "긴장 풀어주는",
 ];
-
-type MeResponse = {
-  ok?: boolean;
-  isLoggedIn: boolean;
-  isArtist?: boolean;
-  artistId?: string | null;
-  email?: string | null;
-  name?: string | null;
-  dbError?: boolean;
-};
 
 type ArtistResponse = {
   id: string;
@@ -258,24 +249,18 @@ export default function ArtistProfileEditPage() {
     styleKeywords: [],
   });
 
+  const { data: meData, isLoading: isMeLoading } = useMe();
+
   useEffect(() => {
+    if (isMeLoading) return;
     let ignore = false;
 
     async function init() {
       try {
-        setLoading(true);
         setError("");
         setMessage("");
 
-        const meRes = await fetch("/api/me", {
-          method: "GET",
-          credentials: "include",
-          cache: "no-store",
-        });
-
-        const meData: MeResponse = await meRes.json();
-
-        if (!meRes.ok || !meData.isLoggedIn) {
+        if (!meData || !meData.isLoggedIn) {
           window.location.href = "/login";
           return;
         }
@@ -295,6 +280,7 @@ export default function ArtistProfileEditPage() {
           setArtistId(currentArtistId);
         }
 
+        setLoading(true);
         const artistRes = await fetch(`/api/artists/${currentArtistId}`, {
           method: "GET",
           credentials: "include",
@@ -339,7 +325,7 @@ export default function ArtistProfileEditPage() {
     return () => {
       ignore = true;
     };
-  }, []);
+  }, [isMeLoading, meData]);
 
   const isValid = useMemo(() => {
     return (

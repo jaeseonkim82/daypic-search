@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { useMe } from "@/lib/queries/me";
 
 const ADMIN_INQUIRY_URL = "https://pf.kakao.com/_YOUR_CHANNEL_LINK";
 
@@ -85,16 +86,6 @@ type FormState = {
   openchatUrl: string;
 };
 
-type MeResponse = {
-  ok: boolean;
-  userId: string | null;
-  artistId: string | null;
-  kakaoId: string | null;
-  email: string | null;
-  name: string | null;
-  isLoggedIn: boolean;
-  isArtist: boolean;
-};
 
 const initialFormState: FormState = {
   companyName: "",
@@ -227,54 +218,24 @@ export default function ArtistRegisterPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitMessage, setSubmitMessage] = useState("");
   const [submitError, setSubmitError] = useState("");
-  const [me, setMe] = useState<MeResponse | null>(null);
-  const [isMeLoading, setIsMeLoading] = useState(true);
+  const { data: me, isLoading: isMeLoading } = useMe();
 
   useEffect(() => {
-    let mounted = true;
-
-    async function fetchMe() {
-      try {
-        const res = await fetch("/api/me", { cache: "no-store" });
-        const data: MeResponse = await res.json();
-
-        if (!mounted) return;
-
-        setMe(data);
-
-        if (!data?.isLoggedIn) {
-          window.location.href = "/login";
-          return;
-        }
-
-        if (data?.isArtist) {
-          window.location.href = "/artist-dashboard";
-          return;
-        }
-
-        setForm((prev) => ({
-          ...prev,
-          email: prev.email || data.email || "",
-          companyName: prev.companyName || data.name || "",
-        }));
-      } catch (error) {
-        console.error("artist-register /api/me 조회 실패:", error);
-        if (mounted) {
-          setMe(null);
-        }
-      } finally {
-        if (mounted) {
-          setIsMeLoading(false);
-        }
-      }
+    if (isMeLoading) return;
+    if (!me || !me.isLoggedIn) {
+      window.location.href = "/login";
+      return;
     }
-
-    fetchMe();
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
+    if (me.isArtist) {
+      window.location.href = "/artist-dashboard";
+      return;
+    }
+    setForm((prev) => ({
+      ...prev,
+      email: prev.email || me.email || "",
+      companyName: prev.companyName || me.name || "",
+    }));
+  }, [isMeLoading, me]);
 
   const isFormValid = useMemo(() => {
     return (
