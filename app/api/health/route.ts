@@ -6,6 +6,17 @@ import { getSupabaseAdmin } from "@/lib/supabase";
  * 배포 검증 / 모니터링용. Supabase 연결과 주요 테이블 접근을 가볍게 ping.
  * 세션 불필요. 캐시 비활성화.
  */
+const PROBE_TIMEOUT_MS = 5_000;
+
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  return Promise.race<T>([
+    p,
+    new Promise<T>((_, rej) =>
+      setTimeout(() => rej(new Error(`timeout ${ms}ms`)), ms),
+    ),
+  ]);
+}
+
 export async function GET() {
   const startedAt = Date.now();
 
@@ -15,7 +26,7 @@ export async function GET() {
   async function probe(name: string, run: () => Promise<void>) {
     const t0 = Date.now();
     try {
-      await run();
+      await withTimeout(run(), PROBE_TIMEOUT_MS);
       checks[name] = { ok: true, latency_ms: Date.now() - t0 };
     } catch (error) {
       checks[name] = {

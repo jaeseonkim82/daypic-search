@@ -14,18 +14,6 @@ type CalendarDay = {
   isCurrentMonth: boolean;
 };
 
-type MeResponse = {
-  ok: boolean;
-  isLoggedIn: boolean;
-  isArtist: boolean;
-  artistId: string | null;
-  artistCode?: string | null;
-  kakaoId?: string | null;
-  email: string | null;
-  name: string | null;
-  dbError?: boolean;
-};
-
 function formatDate(date: Date): string {
   const yyyy = date.getFullYear();
   const mm = String(date.getMonth() + 1).padStart(2, "0");
