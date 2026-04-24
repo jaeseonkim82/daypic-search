@@ -82,31 +82,7 @@ function buildCalendarDays(currentMonth: Date): CalendarDay[] {
   return days;
 }
 
-async function fetchWithTimeout(
-  input: RequestInfo | URL,
-  init?: RequestInit,
-  timeout = 10000
-) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeout);
-
-  try {
-    const response = await fetch(input, {
-      ...init,
-      signal: controller.signal,
-    });
-    return response;
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
 export default function ArtistCalendarPage() {
-  const [sessionReady, setSessionReady] = useState(false);
-  const [sessionEmail, setSessionEmail] = useState("");
-  const [sessionArtistId, setSessionArtistId] = useState("");
-  const [dbError, setDbError] = useState(false);
-
   const [currentMonth, setCurrentMonth] = useState(() => {
     const today = new Date();
     return new Date(today.getFullYear(), today.getMonth(), 1);
@@ -114,31 +90,33 @@ export default function ArtistCalendarPage() {
 
   const [selectedDate, setSelectedDate] = useState("");
   const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
+  const [submitError, setSubmitError] = useState("");
 
   const days = useMemo(() => buildCalendarDays(currentMonth), [currentMonth]);
 
   const { data: meData, isLoading: isMeLoading, isError: isMeError } = useMe();
 
+  // 세션 정보는 useMe 데이터에서 직접 파생 (useState + useEffect setState 불필요)
+  const sessionArtistId = meData?.artistId ?? "";
+  const sessionEmail = meData?.email ?? "";
+  const dbError = meData?.dbError === true;
+  const sessionReady =
+    !isMeLoading &&
+    !isMeError &&
+    !!meData?.isLoggedIn &&
+    !!meData?.isArtist &&
+    !!meData?.artistId;
+
+  // 리다이렉트 분기만 useEffect 로 (부수 효과)
   useEffect(() => {
     if (isMeLoading) return;
-    setError("");
-    if (isMeError || !meData) {
-      window.location.href = "/login";
-      return;
-    }
-    if (!meData.isLoggedIn) {
+    if (isMeError || !meData || !meData.isLoggedIn) {
       window.location.href = "/login";
       return;
     }
     if (!meData.isArtist || !meData.artistId) {
       window.location.href = "/artist-register";
-      return;
     }
-    setSessionArtistId(meData.artistId);
-    setSessionEmail(meData.email || "");
-    setDbError(meData.dbError === true);
-    setSessionReady(true);
   }, [isMeLoading, isMeError, meData]);
 
   useEffect(() => {
@@ -153,12 +131,13 @@ export default function ArtistCalendarPage() {
   const isLoading = closedQuery.isLoading;
   const isBlocked = selectedDate ? blockedDates.includes(selectedDate) : false;
 
-  useEffect(() => {
-    if (closedQuery.isError && closedQuery.error) {
-      const err = closedQuery.error;
-      setError(err instanceof Error ? err.message : "일정 정보를 불러오지 못했어.");
-    }
-  }, [closedQuery.isError, closedQuery.error]);
+  // 쿼리 에러도 파생값으로 (setState 불필요)
+  const closedQueryError = closedQuery.isError
+    ? closedQuery.error instanceof Error
+      ? closedQuery.error.message
+      : "일정 정보를 불러오지 못했어."
+    : "";
+  const error = submitError || closedQueryError;
 
   const addClosedMutation = useAddClosedDate();
   const deleteClosedMutation = useDeleteClosedDate();
@@ -167,7 +146,7 @@ export default function ArtistCalendarPage() {
   async function handleRegisterBlocked() {
     if (!selectedDate || !sessionArtistId || isSaving) return;
     try {
-      setError("");
+      setSubmitError("");
       setMessage("");
       const data = await addClosedMutation.mutateAsync(selectedDate);
       setMessage(
@@ -176,7 +155,7 @@ export default function ArtistCalendarPage() {
           : "촬영 불가 날짜가 등록되었어."
       );
     } catch (err) {
-      setError(
+      setSubmitError(
         err instanceof Error
           ? err.message
           : "촬영 불가 날짜 등록 중 오류가 발생했어."
@@ -188,12 +167,12 @@ export default function ArtistCalendarPage() {
     if (!selectedDate || !sessionArtistId || isSaving) return;
 
     try {
-      setError("");
+      setSubmitError("");
       setMessage("");
       await deleteClosedMutation.mutateAsync(selectedDate);
       setMessage("촬영 불가 날짜가 해제되었어.");
     } catch (err) {
-      setError(
+      setSubmitError(
         err instanceof Error
           ? err.message
           : "촬영 불가 날짜 해제 중 오류가 발생했어."
