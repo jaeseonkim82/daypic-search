@@ -24,7 +24,7 @@ type Artist = {
   rating?: number;
   style_keywords?: string[];
   openchat_url?: string;
-  portfolio_images?: string[] | string;
+  portfolio_images?: string[];
   artist_type?: string;
   video_portfolio_items?: VideoPortfolioItem[];
 };
@@ -103,7 +103,7 @@ function buildSavedArtist(artist: Artist): SavedArtist {
   };
 }
 
-function normalizeArtistFromApi(rawArtist: Record<string, any>): Artist {
+function normalizeArtistFromApi(rawArtist: Record<string, unknown>): Artist {
   const keywordsSource = rawArtist.style_keywords;
 
   const imageValue =
@@ -155,7 +155,7 @@ function normalizeArtistFromApi(rawArtist: Record<string, any>): Artist {
     rating: ratingValue,
     style_keywords: normalizeArray(keywordsSource),
     openchat_url: openchatValue ? String(openchatValue) : "",
-    portfolio_images: portfolioImagesValue,
+    portfolio_images: normalizeArray(portfolioImagesValue),
 
     artist_type: String(rawArtist.artist_type ?? ""),
     video_portfolio_items: Array.isArray(rawArtist.video_portfolio_items)
@@ -329,7 +329,7 @@ export default function HomePage() {
         rating: typeof artist.rating === "number" ? artist.rating : 4.8,
         style_keywords: safeKeywords,
         openchat_url: artist.openchat_url || "",
-        portfolio_images: artist.portfolio_images || "",
+        portfolio_images: artist.portfolio_images ?? [],
       };
     });
   }, [artists]);
@@ -433,7 +433,7 @@ export default function HomePage() {
   function saveArtistDetailCache(artist: Artist) {
     if (typeof window === "undefined") return;
 
-    const currentCache = parseStorage<Record<string, any>>(
+    const currentCache = parseStorage<Record<string, unknown>>(
       window.localStorage,
       DETAIL_STORAGE_KEY,
       {}
@@ -446,7 +446,7 @@ export default function HomePage() {
         id: String(artist.id),
         style_keywords: artist.style_keywords || [],
         openchat_url: artist.openchat_url || "",
-        portfolio_images: artist.portfolio_images || "",
+        portfolio_images: artist.portfolio_images ?? [],
         artist_type: artist.artist_type || "",
         video_portfolio_items: artist.video_portfolio_items || [],
       },
