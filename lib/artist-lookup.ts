@@ -2,19 +2,17 @@ import { getSupabaseAdmin, ArtistRow } from "@/lib/supabase";
 
 const ID_SAFE = /^[a-zA-Z0-9_-]+$/;
 const RECORD_ID = /^rec[a-zA-Z0-9]+$/;
-const ARTIST_CODE = /^artist_[a-zA-Z0-9_-]+$/;
 const ARTIST_REC_HYBRID = /^artist_rec/;
 const USER_ID = /^user_[a-zA-Z0-9_-]+$/;
 const KAKAO_ID = /^\d+$/;
 
-type LookupColumn = "id" | "artist_id" | "user_id" | "kakao_id";
+type LookupColumn = "id" | "user_id" | "kakao_id";
 
 function detectColumn(id: string): LookupColumn | null {
   if (!id || !ID_SAFE.test(id)) return null;
   if (RECORD_ID.test(id)) return "id";
-  // 'artist_rec...' 혼종 포맷은 legacy 잔재로 간주하고 거부
+  // Phase B: artist_xxx 레거시 코드 포맷은 더 이상 lookup 안 함. 404 로 유도.
   if (ARTIST_REC_HYBRID.test(id)) return null;
-  if (ARTIST_CODE.test(id)) return "artist_id";
   if (USER_ID.test(id)) return "user_id";
   if (KAKAO_ID.test(id)) return "kakao_id";
   return null;
