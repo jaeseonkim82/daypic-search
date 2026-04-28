@@ -37,6 +37,14 @@ export async function GET() {
     }
   }
 
+  function formatPgError(err: { message: string; code?: string; details?: string; hint?: string }): string {
+    const parts = [err.message];
+    if (err.code) parts.push(`code=${err.code}`);
+    if (err.details) parts.push(`details=${err.details}`);
+    if (err.hint) parts.push(`hint=${err.hint}`);
+    return parts.join(" | ");
+  }
+
   try {
     const supabase = getSupabaseAdmin();
 
@@ -45,7 +53,7 @@ export async function GET() {
         .from("artists")
         .select("id", { head: true })
         .limit(1);
-      if (error) throw new Error(error.message);
+      if (error) throw new Error(formatPgError(error));
     });
 
     await probe("closed_dates", async () => {
@@ -53,7 +61,7 @@ export async function GET() {
         .from("closed_dates")
         .select("id", { head: true })
         .limit(1);
-      if (error) throw new Error(error.message);
+      if (error) throw new Error(formatPgError(error));
     });
 
     await probe("video_portfolio_items", async () => {
@@ -61,13 +69,20 @@ export async function GET() {
         .from("video_portfolio_items")
         .select("artist_id", { head: true })
         .limit(1);
-      if (error) throw new Error(error.message);
+      if (error) throw new Error(formatPgError(error));
     });
   } catch (error) {
     return NextResponse.json(
       {
         ok: false,
+        stage: "init",
         error: error instanceof Error ? error.message : String(error),
+        env_check: {
+          NEXT_PUBLIC_SUPABASE_URL: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+          SUPABASE_SERVICE_ROLE_KEY:
+            !!process.env.SUPABASE_SERVICE_ROLE_KEY ||
+            !!process.env.SUPABASE_SECRET_KEY,
+        },
         duration_ms: Date.now() - startedAt,
       },
       { status: 500, headers: { "Cache-Control": "no-store" } }
