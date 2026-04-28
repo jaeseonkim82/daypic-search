@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       artists: {
         Row: {
+          artist_id: string | null
           artist_type: string | null
           created_at: string | null
           email: string | null
@@ -36,6 +37,7 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          artist_id?: string | null
           artist_type?: string | null
           created_at?: string | null
           email?: string | null
@@ -56,6 +58,7 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          artist_id?: string | null
           artist_type?: string | null
           created_at?: string | null
           email?: string | null
@@ -189,6 +192,7 @@ export type Database = {
     Views: {
       artists_public: {
         Row: {
+          artist_id: string | null
           artist_type: string | null
           created_at: string | null
           id: string | null
@@ -205,6 +209,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          artist_id?: string | null
           artist_type?: string | null
           created_at?: string | null
           id?: string | null
@@ -221,6 +226,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          artist_id?: string | null
           artist_type?: string | null
           created_at?: string | null
           id?: string | null
@@ -242,6 +248,7 @@ export type Database = {
     Functions: {
       register_artist: {
         Args: {
+          p_artist_id: string
           p_email: string
           p_id: string
           p_kakao_id: string
@@ -256,6 +263,7 @@ export type Database = {
           p_user_id: string
         }
         Returns: {
+          artist_id: string | null
           artist_type: string | null
           created_at: string | null
           email: string | null
