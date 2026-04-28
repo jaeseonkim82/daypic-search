@@ -117,7 +117,6 @@ async function searchArtists(
       }
       rows = rows.filter((row) => {
         if (row.id && closedIds.has(row.id)) return false;
-        if (row.artist_id && closedIds.has(row.artist_id)) return false;
         return true;
       });
     }

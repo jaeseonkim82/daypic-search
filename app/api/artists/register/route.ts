@@ -135,10 +135,9 @@ export async function POST(request: NextRequest) {
 
     // 008 마이그레이션: users upsert + artists insert 를 단일 트랜잭션으로 묶는 RPC.
     // 중간 실패 시 users 만 남는 half-registered 상태 방지.
-    // Phase B: artist_id (artist_xxx) 는 더 이상 신규 작가에게 발급하지 않음 — null 저장.
+    // Phase C (마이그레이션 009): artists.artist_id 컬럼 DROP + register_artist RPC 시그니처에서 p_artist_id 제거.
     const { data, error } = await supabase.rpc("register_artist", {
       p_id: id,
-      p_artist_id: null as unknown as string,
       p_user_id: userId,
       p_kakao_id: kakaoId,
       p_email: normalizedEmail,

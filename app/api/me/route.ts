@@ -33,7 +33,7 @@ async function findArtistByToken(token: Token) {
   if (!token.kakaoId) return null;
   const { data, error } = await supabase
     .from("artists")
-    .select("id, artist_id, name, email")
+    .select("id, name, email")
     .eq("kakao_id", token.kakaoId)
     .maybeSingle();
 

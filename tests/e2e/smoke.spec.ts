@@ -39,6 +39,10 @@ test.describe("public smoke", () => {
 test.describe("api smoke", () => {
   test("GET /api/health 200 + ok=true + 세 테이블 ping", async ({ request }) => {
     const res = await request.get("/api/health");
+    if (res.status() !== 200) {
+      const text = await res.text();
+      console.error(`[/api/health] status=${res.status()} body=${text}`);
+    }
     expect(res.status()).toBe(200);
     const body = await res.json();
     expect(body.ok).toBe(true);
@@ -56,6 +60,10 @@ test.describe("api smoke", () => {
 
   test("GET /api/search 날짜 없이 호출 시 empty 가능", async ({ request }) => {
     const res = await request.get("/api/search");
+    if (!res.ok()) {
+      const text = await res.text();
+      console.error(`[/api/search] status=${res.status()} body=${text}`);
+    }
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
     expect(body.ok).toBe(true);
