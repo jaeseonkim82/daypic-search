@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
     // 작가 PK 기반 random suffix 로 public_id 서버에서 생성.
     // 서명에 포함시켜 클라이언트가 경로를 조작하거나 타작가 파일 덮어쓰기 불가.
     const randomSuffix = crypto.randomBytes(8).toString("hex");
-    const publicId = `${folder}/${artist.id}_${timestamp}_${randomSuffix}`;
+    const publicId = `${artist.id}_${timestamp}_${randomSuffix}`;
 
     // Cloudinary 서명: 알파벳 순 정렬된 `key=value&...` + apiSecret
     const paramsToSign = [

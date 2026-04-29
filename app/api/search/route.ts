@@ -66,6 +66,9 @@ function artistRowToResponse(
   };
 }
 
+const ARTIST_COLUMNS =
+  "id, name, service, region, price, portfolio, image, rating, style_keywords, open_chat_url, portfolio_images, artist_type";
+
 async function searchArtists(
   date: string,
   region: string,
@@ -74,20 +77,34 @@ async function searchArtists(
 ): Promise<Artist[]> {
   const supabase = getSupabaseAdmin();
 
-  const { data: artists, error } = await supabase.from("artists").select("*");
+  // artists + closed_dates 를 병렬로 조회 (closed_dates는 date만 있으면 됨)
+  const [artistsResult, closedResult] = await Promise.all([
+    supabase.from("artists").select(ARTIST_COLUMNS),
+    date
+      ? supabase.from("closed_dates").select("artist_id").eq("closed_date", date)
+      : Promise.resolve({ data: [] as { artist_id: string }[], error: null }),
+  ]);
 
-  if (error) {
-    throw new Error(`Supabase artists 조회 실패: ${error.message}`);
+  if (artistsResult.error) {
+    throw new Error(`Supabase artists 조회 실패: ${artistsResult.error.message}`);
   }
 
-  let rows = (artists ?? []) as ArtistRow[];
+  if (closedResult.error) {
+    console.warn("closed_dates 조회 실패:", closedResult.error.message);
+  }
+
+  const closedIds = new Set<string>();
+  for (const c of closedResult.data ?? []) {
+    if (c.artist_id) closedIds.add(String(c.artist_id));
+  }
+
+  let rows = (artistsResult.data ?? []) as ArtistRow[];
 
   if (region) {
     const selected = normalizeText(region);
-    rows = rows.filter((row) => {
-      const regionText = normalizeText((row.region ?? []).join(" "));
-      return regionText.includes(selected);
-    });
+    rows = rows.filter((row) =>
+      normalizeText((row.region ?? []).join(" ")).includes(selected)
+    );
   }
 
   if (services.length > 0) {
@@ -102,24 +119,8 @@ async function searchArtists(
     rows = rows.filter((row) => normalizeText(row.price ?? "") === selected);
   }
 
-  if (date) {
-    const { data: closed, error: closedError } = await supabase
-      .from("closed_dates")
-      .select("artist_id")
-      .eq("closed_date", date);
-
-    if (closedError) {
-      console.warn("closed_dates 조회 실패:", closedError.message);
-    } else {
-      const closedIds = new Set<string>();
-      for (const c of closed ?? []) {
-        if (c.artist_id) closedIds.add(String(c.artist_id));
-      }
-      rows = rows.filter((row) => {
-        if (row.id && closedIds.has(row.id)) return false;
-        return true;
-      });
-    }
+  if (closedIds.size > 0) {
+    rows = rows.filter((row) => !row.id || !closedIds.has(row.id));
   }
 
   const itemsByArtist = new Map<string, VideoPortfolioItem[]>();
@@ -134,10 +135,7 @@ async function searchArtists(
       .order("position", { ascending: true });
 
     if (videoError) {
-      console.warn(
-        "video_portfolio_items 일괄 조회 실패:",
-        videoError.message
-      );
+      console.warn("video_portfolio_items 일괄 조회 실패:", videoError.message);
     } else {
       for (const v of videoItems ?? []) {
         const arr = itemsByArtist.get(v.artist_id) ?? [];
