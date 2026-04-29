@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useSearchArtists, type SearchParams } from "@/lib/queries/search";
+import { Suspense, ErrorBoundary } from "@suspensive/react";
+import { useSearchArtistsSuspense, type SearchParams } from "@/lib/queries/search";
 import { normalizeArray, joinLabel } from "@/lib/normalize";
 
 type VideoPortfolioItem = {
@@ -195,7 +196,311 @@ function isPureVideoSearch(selectedServices: string[]) {
   return selectedServices.length === 1 && selectedServices[0] === "영상촬영";
 }
 
-export default function HomePage() {
+// ─── SearchResultsSkeleton ───────────────────────────────────────────────────
+
+function SearchResultsSkeleton() {
+  return (
+    <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <div key={i} className="h-[280px] animate-pulse rounded-[26px] bg-[#ede6f7]" />
+      ))}
+    </div>
+  );
+}
+
+// ─── SearchResultsGrid ───────────────────────────────────────────────────────
+
+type SearchResultsGridProps = {
+  params: SearchParams;
+  pureVideoSearch: boolean;
+  isFavorite: (id: string) => boolean;
+  onArtistClick: (artist: Artist) => void;
+  onFavoriteToggle: (e: React.MouseEvent<HTMLButtonElement>, artist: Artist) => void;
+  onScrollSave: (scrollY?: number) => void;
+  onSaveRecent: (artist: Artist) => void;
+  onTotalChange: (total: number) => void;
+  pendingScrollRestoreRef: { current: number | null };
+  isNewSearchRef: { current: boolean };
+};
+
+function SearchResultsGrid({
+  params,
+  pureVideoSearch,
+  isFavorite,
+  onArtistClick,
+  onFavoriteToggle,
+  onScrollSave,
+  onSaveRecent,
+  onTotalChange,
+  pendingScrollRestoreRef,
+  isNewSearchRef,
+}: SearchResultsGridProps) {
+  const searchQuery = useSearchArtistsSuspense(params);
+
+  const artists = useMemo<Artist[]>(() => {
+    return searchQuery.data.pages
+      .flatMap((p) => p.artists)
+      .map((item) => normalizeArtistFromApi(item as Record<string, unknown>));
+  }, [searchQuery.data]);
+
+  const total = searchQuery.data.pages[0]?.total ?? 0;
+  const pageCount = searchQuery.data.pages.length;
+
+  const displayArtists = useMemo(() => {
+    return artists.map((artist) => {
+      const primaryThumb = getPrimaryVideoThumb(artist);
+      return {
+        ...artist,
+        id: String(artist.id),
+        image: artist.image || PLACEHOLDER_IMAGE,
+        videoCardThumb: primaryThumb || artist.image || PLACEHOLDER_IMAGE,
+        rating: typeof artist.rating === "number" ? artist.rating : 4.8,
+        style_keywords: artist.style_keywords ?? [],
+        openchat_url: artist.openchat_url || "",
+        portfolio_images: artist.portfolio_images ?? [],
+      };
+    });
+  }, [artists]);
+
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const fetchNextPageRef = useRef(searchQuery.fetchNextPage);
+  const prefetchedPagesRef = useRef(new Set<number>());
+  const scrollRestoredForParamsRef = useRef<SearchParams | null>(null);
+
+  useEffect(() => {
+    fetchNextPageRef.current = searchQuery.fetchNextPage;
+  });
+
+  useEffect(() => {
+    onTotalChange(total);
+  }, [total, onTotalChange]);
+
+  // 스크롤 복원: 새 검색(isNewSearchRef)이면 즉시 취소, 아니면 첫 페이지 도착 후 1회 복원.
+  useEffect(() => {
+    if (isNewSearchRef.current) {
+      pendingScrollRestoreRef.current = null;
+      isNewSearchRef.current = false;
+      return;
+    }
+    if (pendingScrollRestoreRef.current === null) return;
+    if (pageCount < 1) return;
+    if (scrollRestoredForParamsRef.current === params) return;
+    scrollRestoredForParamsRef.current = params;
+
+    const targetY = pendingScrollRestoreRef.current;
+    pendingScrollRestoreRef.current = null;
+
+    const timer = window.setTimeout(() => {
+      window.scrollTo({ top: targetY, behavior: "auto" });
+    }, 80);
+    return () => window.clearTimeout(timer);
+  }, [pageCount, params, pendingScrollRestoreRef, isNewSearchRef]);
+
+  // params 변경 시 프리페치 기록 초기화
+  useEffect(() => {
+    prefetchedPagesRef.current = new Set();
+  }, [params]);
+
+  // 무한 스크롤: sentinel이 뷰포트 진입 시 fetch (fallback).
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && searchQuery.hasNextPage && !searchQuery.isFetching) {
+          void fetchNextPageRef.current();
+        }
+      },
+      { rootMargin: "300px" }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [searchQuery.hasNextPage, searchQuery.isFetching]);
+
+  // 프리페치 cascade: 새 페이지 도착 시 다음 페이지 미리 로드.
+  useEffect(() => {
+    if (
+      pageCount === 0 ||
+      !searchQuery.hasNextPage ||
+      searchQuery.isFetching ||
+      prefetchedPagesRef.current.has(pageCount)
+    ) return;
+    prefetchedPagesRef.current.add(pageCount);
+    void fetchNextPageRef.current();
+  }, [pageCount, searchQuery.hasNextPage, searchQuery.isFetching]);
+
+  return (
+    <>
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+        {displayArtists.length === 0 ? (
+          <div className="col-span-full rounded-[24px] border border-[#e6dff0] bg-white p-10 text-center text-[17px] text-[#756f8d]">
+            아직 표시할 검색 결과가 없어.
+          </div>
+        ) : (
+          displayArtists.map((artist) => {
+            const favorite = isFavorite(String(artist.id));
+            const primaryVideoLink = getPrimaryVideoLink(artist);
+
+            if (pureVideoSearch) {
+              return (
+                <article
+                  key={String(artist.id)}
+                  onClick={() => onArtistClick(artist)}
+                  className="group cursor-pointer overflow-hidden rounded-[26px] border border-[#e8dff3] bg-white shadow-[0_8px_24px_rgba(60,50,100,0.06)] transition hover:-translate-y-[4px] hover:shadow-[0_22px_40px_rgba(60,50,100,0.12)]"
+                >
+                  <div className="relative aspect-[16/10] overflow-hidden bg-[#f1ebf8]">
+                    <img
+                      src={artist.videoCardThumb || artist.image}
+                      alt={artist.name}
+                      className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.05]"
+                      onError={(e) => {
+                        const img = e.currentTarget;
+                        if (img.src.endsWith(PLACEHOLDER_IMAGE)) return;
+                        img.src = PLACEHOLDER_IMAGE;
+                      }}
+                    />
+                    <div className="absolute left-3 top-3 z-10 rounded-full bg-black/60 px-3 py-1 text-[11px] font-semibold text-white backdrop-blur-sm">
+                      VIDEO PORTFOLIO
+                    </div>
+                    <button
+                      type="button"
+                      onClick={(e) => onFavoriteToggle(e, artist)}
+                      className={`absolute right-3 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full border backdrop-blur-sm ${favorite ? "border-[#ffbdd4] bg-[#ffedf5] text-[#ff5c9a]" : "border-white/70 bg-white/85 text-[#6a617f]"}`}
+                      aria-label={favorite ? "찜 해제" : "찜하기"}
+                    >
+                      {favorite ? "❤" : "♡"}
+                    </button>
+                    {primaryVideoLink && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onScrollSave(window.scrollY);
+                          onSaveRecent(artist);
+                          window.open(primaryVideoLink, "_blank", "noopener,noreferrer");
+                        }}
+                        className="absolute bottom-3 right-3 z-10 rounded-full bg-white/90 px-4 py-2 text-[12px] font-bold text-[#4f3ccf] shadow-sm"
+                      >
+                        영상 보기
+                      </button>
+                    )}
+                  </div>
+                  <div className="p-4">
+                    <h3 className="truncate text-[19px] font-bold tracking-[-0.03em] text-[#272347]">{artist.name}</h3>
+                    <p className="mt-1 truncate text-[13px] text-[#6a6384]">{joinLabel(artist.region)}</p>
+                    <p className="mt-1 truncate text-[13px] text-[#8d63ff]">{joinLabel(artist.service)}</p>
+                    <p className="mt-3 text-[14px] font-semibold text-[#4b4468]">{artist.price}</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {artist.style_keywords?.slice(0, 4).map((keyword) => (
+                        <span key={keyword} className="rounded-full bg-[#f2ebff] px-2.5 py-1 text-[11px] font-medium text-[#7652ea]">{keyword}</span>
+                      ))}
+                    </div>
+                    <div className="mt-4 grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); onArtistClick(artist); }}
+                        className="h-10 rounded-[14px] bg-[#f3effb] text-[13px] font-semibold text-[#5b47c8]"
+                      >상세페이지</button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (!primaryVideoLink) return;
+                          onScrollSave(window.scrollY);
+                          onSaveRecent(artist);
+                          window.open(primaryVideoLink, "_blank", "noopener,noreferrer");
+                        }}
+                        disabled={!primaryVideoLink}
+                        className={`h-10 rounded-[14px] text-[13px] font-semibold ${primaryVideoLink ? "bg-[#6d46f6] text-white" : "bg-[#ece8f6] text-[#9a93b1]"}`}
+                      >{primaryVideoLink ? "영상 포트폴리오" : "준비중"}</button>
+                    </div>
+                  </div>
+                </article>
+              );
+            }
+
+            return (
+              <article
+                key={String(artist.id)}
+                onClick={() => onArtistClick(artist)}
+                className="group cursor-pointer overflow-hidden rounded-[26px] border border-[#e8dff3] bg-white shadow-[0_8px_24px_rgba(60,50,100,0.06)] transition hover:-translate-y-[4px] hover:shadow-[0_22px_40px_rgba(60,50,100,0.12)]"
+              >
+                <div className="relative aspect-[16/10] overflow-hidden bg-[#f1ebf8]">
+                  <img
+                    src={artist.image}
+                    alt={artist.name}
+                    className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.05]"
+                    onError={(e) => {
+                      const img = e.currentTarget;
+                      if (img.src.endsWith(PLACEHOLDER_IMAGE)) return;
+                      img.src = PLACEHOLDER_IMAGE;
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={(e) => onFavoriteToggle(e, artist)}
+                    className={`absolute right-3 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full border backdrop-blur-sm ${favorite ? "border-[#ffbdd4] bg-[#ffedf5] text-[#ff5c9a]" : "border-white/70 bg-white/85 text-[#6a617f]"}`}
+                    aria-label={favorite ? "찜 해제" : "찜하기"}
+                  >
+                    {favorite ? "❤" : "♡"}
+                  </button>
+                </div>
+                <div className="p-4">
+                  <h3 className="truncate text-[19px] font-bold tracking-[-0.03em] text-[#272347]">{artist.name}</h3>
+                  <p className="mt-1 truncate text-[13px] text-[#6a6384]">{joinLabel(artist.region)}</p>
+                  <p className="mt-1 truncate text-[13px] text-[#8d63ff]">{joinLabel(artist.service)}</p>
+                  <p className="mt-3 text-[14px] font-semibold text-[#4b4468]">{artist.price}</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {artist.style_keywords?.slice(0, 4).map((keyword) => (
+                      <span key={keyword} className="rounded-full bg-[#f2ebff] px-2.5 py-1 text-[11px] font-medium text-[#7652ea]">{keyword}</span>
+                    ))}
+                  </div>
+                  <div className="mt-4 grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); onArtistClick(artist); }}
+                      className="h-10 rounded-[14px] bg-[#f3effb] text-[13px] font-semibold text-[#5b47c8]"
+                    >상세페이지</button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!artist.portfolio) return;
+                        onScrollSave(window.scrollY);
+                        onSaveRecent(artist);
+                        window.open(artist.portfolio, "_blank", "noopener,noreferrer");
+                      }}
+                      disabled={!artist.portfolio}
+                      className={`h-10 rounded-[14px] text-[13px] font-semibold ${artist.portfolio ? "bg-[#6d46f6] text-white" : "bg-[#ece8f6] text-[#9a93b1]"}`}
+                    >{artist.portfolio ? "포트폴리오" : "준비중"}</button>
+                  </div>
+                </div>
+              </article>
+            );
+          })
+        )}
+      </div>
+
+      {searchQuery.hasNextPage && (
+        <div ref={sentinelRef} className="mt-8 flex h-12 justify-center">
+          {searchQuery.isFetchingNextPage && (
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#7b5cf6] border-t-transparent" />
+          )}
+        </div>
+      )}
+
+      {!searchQuery.hasNextPage && total > 0 && (
+        <p className="mt-4 text-center text-sm text-[#9a93b4]">
+          조건에 맞는 작가 {total}명을 모두 확인했어요.
+        </p>
+      )}
+    </>
+  );
+}
+
+// ─── SearchPageContent ───────────────────────────────────────────────────────
+
+function SearchPageContent() {
   const router = useRouter();
   const searchParamsFromUrl = useSearchParams();
 
@@ -219,10 +524,7 @@ export default function HomePage() {
   const favoriteDropdownRef = useRef<HTMLDivElement | null>(null);
   const initialRestoreDoneRef = useRef(false);
   const pendingScrollRestoreRef = useRef<number | null>(null);
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
   const isNewSearchRef = useRef(false);
-  const scrollRestoredForParamsRef = useRef<SearchParams | null>(null);
-  const prefetchedPagesRef = useRef(new Set<number>());
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -278,64 +580,20 @@ export default function HomePage() {
     };
   }, []);
 
-  // TanStack Query: appliedParams 변경 시 자동 fetch. 동일 키 재접근은 캐시에서 즉시.
-  const searchQuery = useSearchArtists(appliedParams, {
-    enabled: !!appliedParams?.date,
-  });
-
-  const artists = useMemo<Artist[]>(() => {
-    if (!searchQuery.data?.pages) return [];
-    return searchQuery.data.pages
-      .flatMap((p) => p.artists)
-      .map((item) => normalizeArtistFromApi(item as Record<string, unknown>));
-  }, [searchQuery.data]);
-
-  const loading = searchQuery.isLoading;
-  const loadingMore = searchQuery.isFetchingNextPage;
-  const total = searchQuery.data?.pages[0]?.total ?? 0;
-  const pageCount = searchQuery.data?.pages.length ?? 0;
+  const [total, setTotal] = useState<number | null>(null);
   const hasSearched = !!appliedParams;
 
-  // fetchNextPage를 ref에 보관 — Observer 의존성 배열에서 제외하기 위함
-  const fetchNextPageRef = useRef(searchQuery.fetchNextPage);
   useEffect(() => {
-    fetchNextPageRef.current = searchQuery.fetchNextPage;
-  });
+    setTotal(null);
+  }, [appliedParams]);
 
   const message = useMemo(() => {
     if (submitError) return submitError;
     if (!appliedParams) {
       return "예식 날짜와 조건을 입력하면 촬영 가능한 작가를 바로 찾아볼 수 있어요.";
     }
-    if (loading) return "가능한 작가를 찾는 중이예요...";
-    if (searchQuery.isError) {
-      return searchQuery.error instanceof Error
-        ? searchQuery.error.message
-        : "검색 중 오류가 발생했어요.";
-    }
-    if (artists.length === 0) return "조건에 맞는 작가가 없어요.";
-    return `총 ${total}명의 작가를 찾았어요.`;
-  }, [submitError, appliedParams, loading, searchQuery.isError, searchQuery.error, artists.length, total]);
-
-  const displayArtists = useMemo(() => {
-    return artists.map((artist) => {
-      // 데이터 정직: 작가가 입력한 style_keywords 만 노출. 하드코딩 폴백 없음.
-      const safeKeywords = artist.style_keywords ?? [];
-
-      const primaryThumb = getPrimaryVideoThumb(artist);
-
-      return {
-        ...artist,
-        id: String(artist.id),
-        image: artist.image || PLACEHOLDER_IMAGE,
-        videoCardThumb: primaryThumb || artist.image || PLACEHOLDER_IMAGE,
-        rating: typeof artist.rating === "number" ? artist.rating : 4.8,
-        style_keywords: safeKeywords,
-        openchat_url: artist.openchat_url || "",
-        portfolio_images: artist.portfolio_images ?? [],
-      };
-    });
-  }, [artists]);
+    return null;
+  }, [submitError, appliedParams]);
 
   const selectedServiceLabel = useMemo(() => {
     if (selectedServices.length === 0) return "촬영 서비스 선택";
@@ -345,9 +603,9 @@ export default function HomePage() {
 
   const resultCountLabel = useMemo(() => {
     if (!hasSearched) return "";
-    if (loading) return "...";
+    if (total === null) return "...";
     return `${total}명`;
-  }, [hasSearched, loading, total]);
+  }, [hasSearched, total]);
 
   const pureVideoSearch = useMemo(
     () => isPureVideoSearch(selectedServices),
@@ -399,68 +657,6 @@ export default function HomePage() {
       window.removeEventListener("scroll", onScroll);
     };
   }, [date, selectedServices, region, price, appliedParams]);
-
-  // 스크롤 복원: 새 검색(isNewSearchRef)이면 즉시 취소, 아니면 첫 페이지 도착 후 1회 복원.
-  // 두 로직을 단일 effect로 합쳐 실행 순서 문제(stale cache hit 시 복원 선행) 방지.
-  useEffect(() => {
-    if (isNewSearchRef.current) {
-      pendingScrollRestoreRef.current = null;
-      isNewSearchRef.current = false;
-      return;
-    }
-    if (pendingScrollRestoreRef.current === null) return;
-    if (pageCount < 1) return;
-    if (scrollRestoredForParamsRef.current === appliedParams) return;
-    scrollRestoredForParamsRef.current = appliedParams;
-
-    const targetY = pendingScrollRestoreRef.current;
-    pendingScrollRestoreRef.current = null;
-
-    const timer = window.setTimeout(() => {
-      window.scrollTo({ top: targetY, behavior: "auto" });
-    }, 80);
-
-    return () => window.clearTimeout(timer);
-  }, [pageCount, appliedParams]);
-
-  // 무한 스크롤: sentinel이 뷰포트 진입 시 다음 페이지 fetch (fallback).
-  // fetchNextPage는 ref로 관리해 Observer 재등록을 hasNextPage 변경 시로만 한정.
-  useEffect(() => {
-    const el = sentinelRef.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (
-          entry.isIntersecting &&
-          searchQuery.hasNextPage &&
-          !searchQuery.isFetching
-        ) {
-          void fetchNextPageRef.current();
-        }
-      },
-      { rootMargin: "300px" }
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [searchQuery.hasNextPage, searchQuery.isFetching]);
-
-  // 새 검색 시 프리페치 기록 초기화
-  useEffect(() => {
-    prefetchedPagesRef.current = new Set();
-  }, [appliedParams]);
-
-  // 프리페치: 새 페이지 도착 시 다음 페이지를 백그라운드에서 미리 로드.
-  // 중복 방지를 위해 pageCount별 1회만 실행. Observer는 fallback 역할.
-  useEffect(() => {
-    if (
-      pageCount === 0 ||
-      !searchQuery.hasNextPage ||
-      searchQuery.isFetching ||
-      prefetchedPagesRef.current.has(pageCount)
-    ) return;
-    prefetchedPagesRef.current.add(pageCount);
-    void fetchNextPageRef.current();
-  }, [pageCount, searchQuery.hasNextPage, searchQuery.isFetching]);
 
   function toggleService(serviceName: string) {
     setSelectedServices((prev) => {
@@ -764,13 +960,9 @@ export default function HomePage() {
                 <button
                   type="button"
                   onClick={handleSearch}
-                  disabled={loading}
-                  className={`mt-4 h-[54px] w-full rounded-[16px] text-[16px] font-bold text-white transition ${loading
-                    ? "bg-[#a393cc]"
-                    : "bg-gradient-to-r from-[#7b5cf6] to-[#d75eb6]"
-                    }`}
+                  className="mt-4 h-[54px] w-full rounded-[16px] bg-gradient-to-r from-[#7b5cf6] to-[#d75eb6] text-[16px] font-bold text-white transition"
                 >
-                  {loading ? "작가 검색 중..." : "작가 검색"}
+                  작가 검색
                 </button>
 
                 {(selectedServices.length > 0 || region || price) && (
@@ -1019,247 +1211,45 @@ export default function HomePage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-              {displayArtists.length > 0 ? (
-                displayArtists.map((artist) => {
-                  const favorite = isFavorite(String(artist.id));
-                  const primaryVideoLink = getPrimaryVideoLink(artist);
-                  const renderVideoCard = pureVideoSearch;
-
-                  if (renderVideoCard) {
-                    return (
-                      <article
-                        key={String(artist.id)}
-                        onClick={() => goToArtistDetail(artist)}
-                        className="group cursor-pointer overflow-hidden rounded-[26px] border border-[#e8dff3] bg-white shadow-[0_8px_24px_rgba(60,50,100,0.06)] transition hover:-translate-y-[4px] hover:shadow-[0_22px_40px_rgba(60,50,100,0.12)]"
-                      >
-                        <div className="relative aspect-[16/10] overflow-hidden bg-[#f1ebf8]">
-                          <img
-                            src={artist.videoCardThumb || artist.image}
-                            alt={artist.name}
-                            className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.05]"
-                            onError={(e) => {
-                              const img = e.currentTarget;
-                              if (img.src.endsWith(PLACEHOLDER_IMAGE)) return;
-                              img.src = PLACEHOLDER_IMAGE;
-                            }}
-                          />
-
-                          <div className="absolute left-3 top-3 z-10 rounded-full bg-black/60 px-3 py-1 text-[11px] font-semibold text-white backdrop-blur-sm">
-                            VIDEO PORTFOLIO
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={(event) => toggleFavorite(event, artist)}
-                            className={`absolute right-3 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full border backdrop-blur-sm ${favorite
-                              ? "border-[#ffbdd4] bg-[#ffedf5] text-[#ff5c9a]"
-                              : "border-white/70 bg-white/85 text-[#6a617f]"
-                              }`}
-                            aria-label={favorite ? "찜 해제" : "찜하기"}
-                          >
-                            {favorite ? "❤" : "♡"}
-                          </button>
-
-                          {primaryVideoLink ? (
-                            <button
-                              type="button"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                saveSearchPageState(window.scrollY);
-                                saveRecentArtist(artist);
-                                window.open(primaryVideoLink, "_blank", "noopener,noreferrer");
-                              }}
-                              className="absolute bottom-3 right-3 z-10 rounded-full bg-white/90 px-4 py-2 text-[12px] font-bold text-[#4f3ccf] shadow-sm"
-                            >
-                              영상 보기
-                            </button>
-                          ) : null}
-                        </div>
-
-                        <div className="p-4">
-                          <h3 className="truncate text-[19px] font-bold tracking-[-0.03em] text-[#272347]">
-                            {artist.name}
-                          </h3>
-
-                          <p className="mt-1 truncate text-[13px] text-[#6a6384]">
-                            {joinLabel(artist.region)}
-                          </p>
-
-                          <p className="mt-1 truncate text-[13px] text-[#8d63ff]">
-                            {joinLabel(artist.service)}
-                          </p>
-
-                          <p className="mt-3 text-[14px] font-semibold text-[#4b4468]">
-                            {artist.price}
-                          </p>
-
-                          <div className="mt-3 flex flex-wrap gap-2">
-                            {artist.style_keywords?.slice(0, 4).map((keyword) => (
-                              <span
-                                key={keyword}
-                                className="rounded-full bg-[#f2ebff] px-2.5 py-1 text-[11px] font-medium text-[#7652ea]"
-                              >
-                                {keyword}
-                              </span>
-                            ))}
-                          </div>
-
-                          <div className="mt-4 grid grid-cols-2 gap-2">
-                            <button
-                              type="button"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                goToArtistDetail(artist);
-                              }}
-                              className="h-10 rounded-[14px] bg-[#f3effb] text-[13px] font-semibold text-[#5b47c8]"
-                            >
-                              상세페이지
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                if (!primaryVideoLink) return;
-                                saveSearchPageState(window.scrollY);
-                                saveRecentArtist(artist);
-                                window.open(primaryVideoLink, "_blank", "noopener,noreferrer");
-                              }}
-                              disabled={!primaryVideoLink}
-                              className={`h-10 rounded-[14px] text-[13px] font-semibold ${primaryVideoLink
-                                ? "bg-[#6d46f6] text-white"
-                                : "bg-[#ece8f6] text-[#9a93b1]"
-                                }`}
-                            >
-                              {primaryVideoLink ? "영상 포트폴리오" : "준비중"}
-                            </button>
-                          </div>
-                        </div>
-                      </article>
-                    );
-                  }
-
-                  return (
-                    <article
-                      key={String(artist.id)}
-                      onClick={() => goToArtistDetail(artist)}
-                      className="group cursor-pointer overflow-hidden rounded-[26px] border border-[#e8dff3] bg-white shadow-[0_8px_24px_rgba(60,50,100,0.06)] transition hover:-translate-y-[4px] hover:shadow-[0_22px_40px_rgba(60,50,100,0.12)]"
-                    >
-                      <div className="relative aspect-[16/10] overflow-hidden bg-[#f1ebf8]">
-                        <img
-                          src={artist.image}
-                          alt={artist.name}
-                          className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.05]"
-                          onError={(e) => {
-                            const img = e.currentTarget;
-                            if (img.src.endsWith(PLACEHOLDER_IMAGE)) return;
-                            img.src = PLACEHOLDER_IMAGE;
-                          }}
-                        />
-
-                        <button
-                          type="button"
-                          onClick={(event) => toggleFavorite(event, artist)}
-                          className={`absolute right-3 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full border backdrop-blur-sm ${favorite
-                            ? "border-[#ffbdd4] bg-[#ffedf5] text-[#ff5c9a]"
-                            : "border-white/70 bg-white/85 text-[#6a617f]"
-                            }`}
-                          aria-label={favorite ? "찜 해제" : "찜하기"}
-                        >
-                          {favorite ? "❤" : "♡"}
-                        </button>
-                      </div>
-
-                      <div className="p-4">
-                        <h3 className="truncate text-[19px] font-bold tracking-[-0.03em] text-[#272347]">
-                          {artist.name}
-                        </h3>
-
-                        <p className="mt-1 truncate text-[13px] text-[#6a6384]">
-                          {joinLabel(artist.region)}
-                        </p>
-
-                        <p className="mt-1 truncate text-[13px] text-[#8d63ff]">
-                          {joinLabel(artist.service)}
-                        </p>
-
-                        <p className="mt-3 text-[14px] font-semibold text-[#4b4468]">
-                          {artist.price}
-                        </p>
-
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          {artist.style_keywords?.slice(0, 4).map((keyword) => (
-                            <span
-                              key={keyword}
-                              className="rounded-full bg-[#f2ebff] px-2.5 py-1 text-[11px] font-medium text-[#7652ea]"
-                            >
-                              {keyword}
-                            </span>
-                          ))}
-                        </div>
-
-                        <div className="mt-4 grid grid-cols-2 gap-2">
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              goToArtistDetail(artist);
-                            }}
-                            className="h-10 rounded-[14px] bg-[#f3effb] text-[13px] font-semibold text-[#5b47c8]"
-                          >
-                            상세페이지
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              if (!artist.portfolio) return;
-                              saveSearchPageState(window.scrollY);
-                              saveRecentArtist(artist);
-                              window.open(
-                                artist.portfolio,
-                                "_blank",
-                                "noopener,noreferrer"
-                              );
-                            }}
-                            disabled={!artist.portfolio}
-                            className={`h-10 rounded-[14px] text-[13px] font-semibold ${artist.portfolio
-                              ? "bg-[#6d46f6] text-white"
-                              : "bg-[#ece8f6] text-[#9a93b1]"
-                              }`}
-                          >
-                            {artist.portfolio ? "포트폴리오" : "준비중"}
-                          </button>
-                        </div>
-                      </div>
-                    </article>
-                  );
-                })
-              ) : (
-                <div className="col-span-full rounded-[24px] border border-[#e6dff0] bg-white p-10 text-center text-[17px] text-[#756f8d]">
-                  {date ? "아직 표시할 검색 결과가 없어." : "먼저 예식 날짜를 입력해줘."}
-                </div>
-              )}
-            </div>
-
-            {searchQuery.hasNextPage && (
-              <div ref={sentinelRef} className="mt-8 flex justify-center h-12">
-                {loadingMore && (
-                  <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#7b5cf6] border-t-transparent" />
+            {appliedParams ? (
+              <ErrorBoundary
+                fallback={({ error }) => (
+                  <p className="py-12 text-center text-sm text-[#9a93b4]">
+                    {error.message || "검색 중 오류가 발생했어요."}
+                  </p>
                 )}
+              >
+                <Suspense fallback={<SearchResultsSkeleton />}>
+                  <SearchResultsGrid
+                    params={appliedParams}
+                    pureVideoSearch={pureVideoSearch}
+                    isFavorite={isFavorite}
+                    onArtistClick={goToArtistDetail}
+                    onFavoriteToggle={toggleFavorite}
+                    onScrollSave={saveSearchPageState}
+                    onSaveRecent={saveRecentArtist}
+                    onTotalChange={setTotal}
+                    pendingScrollRestoreRef={pendingScrollRestoreRef}
+                    isNewSearchRef={isNewSearchRef}
+                  />
+                </Suspense>
+              </ErrorBoundary>
+            ) : (
+              <div className="col-span-full rounded-[24px] border border-[#e6dff0] bg-white p-10 text-center text-[17px] text-[#756f8d]">
+                먼저 예식 날짜를 입력해줘.
               </div>
-            )}
-
-            {hasSearched && !searchQuery.hasNextPage && total > 0 && !loading && (
-              <p className="mt-4 text-center text-sm text-[#9a93b4]">
-                조건에 맞는 작가 {total}명을 모두 확인했어요.
-              </p>
             )}
           </div>
         </section>
       </div>
     </main>
+  );
+}
+
+export default function SearchPage() {
+  return (
+    <Suspense>
+      <SearchPageContent />
+    </Suspense>
   );
 }
