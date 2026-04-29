@@ -36,10 +36,12 @@ function normalizeText(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, "");
 }
 
-function shuffle<T>(array: T[]): T[] {
+function seededShuffle<T>(array: T[], seed: number): T[] {
   const result = [...array];
+  let s = seed >>> 0;
   for (let i = result.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
+    const j = s % (i + 1);
     [result[i], result[j]] = [result[j], result[i]];
   }
   return result;
@@ -73,13 +75,15 @@ async function searchArtists(
   date: string,
   region: string,
   price: string,
-  services: string[]
-): Promise<Artist[]> {
+  services: string[],
+  seed: number,
+  limit: number,
+  offset: number,
+): Promise<{ artists: Artist[]; total: number }> {
   const supabase = getSupabaseAdmin();
 
-  // artists + closed_dates 를 병렬로 조회 (closed_dates는 date만 있으면 됨)
   const [artistsResult, closedResult] = await Promise.all([
-    supabase.from("artists").select(ARTIST_COLUMNS),
+    supabase.from("artists").select(ARTIST_COLUMNS).order("id", { ascending: true }),
     date
       ? supabase.from("closed_dates").select("artist_id").eq("closed_date", date)
       : Promise.resolve({ data: [] as { artist_id: string }[], error: null }),
@@ -120,8 +124,12 @@ async function searchArtists(
   }
 
   if (closedIds.size > 0) {
-    rows = rows.filter((row) => !row.id || !closedIds.has(row.id));
+    rows = rows.filter((row) => row.id && !closedIds.has(row.id));
   }
+
+  rows = seededShuffle(rows, seed);
+  const total = rows.length;
+  rows = rows.slice(offset, offset + limit);
 
   const itemsByArtist = new Map<string, VideoPortfolioItem[]>();
   if (rows.length > 0) {
@@ -150,9 +158,11 @@ async function searchArtists(
     }
   }
 
-  return rows.map((row) =>
+  const artists = rows.map((row) =>
     artistRowToResponse(row, itemsByArtist.get(row.id) ?? [])
   );
+
+  return { artists, total };
 }
 
 export async function GET(request: Request) {
@@ -166,14 +176,17 @@ export async function GET(request: Request) {
     const region = searchParams.get("region") || "";
     const price = searchParams.get("price") || "";
     const services = searchParams.getAll("service");
+    const seed = Math.max(1, parseInt(searchParams.get("seed") || "1"));
+    const limit = Math.min(Math.max(parseInt(searchParams.get("limit") || "12"), 1), 50);
+    const offset = Math.max(parseInt(searchParams.get("offset") || "0"), 0);
 
-    const artists = await searchArtists(date, region, price, services);
-    const shuffled = shuffle(artists);
+    const { artists, total } = await searchArtists(date, region, price, services, seed, limit, offset);
 
     return NextResponse.json({
       ok: true,
-      artists: shuffled,
-      total: shuffled.length,
+      artists,
+      total,
+      hasMore: offset + artists.length < total,
       source: "supabase",
     });
   } catch (error) {

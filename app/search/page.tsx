@@ -223,6 +223,9 @@ export default function HomePage() {
   const favoriteDropdownRef = useRef<HTMLDivElement | null>(null);
   const initialRestoreDoneRef = useRef(false);
   const pendingScrollRestoreRef = useRef<number | null>(null);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const isNewSearchRef = useRef(false);
+  const scrollRestoredForParamsRef = useRef<SearchParams | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -290,14 +293,21 @@ export default function HomePage() {
   });
 
   const artists = useMemo<Artist[]>(() => {
-    if (!searchQuery.data?.artists) return [];
-    return searchQuery.data.artists.map((item) =>
-      normalizeArtistFromApi(item as Record<string, unknown>),
-    );
+    if (!searchQuery.data?.pages) return [];
+    return searchQuery.data.pages
+      .flatMap((p) => p.artists)
+      .map((item) => normalizeArtistFromApi(item as Record<string, unknown>));
   }, [searchQuery.data]);
 
-  const loading = searchQuery.isLoading || searchQuery.isFetching;
+  const loading = searchQuery.isLoading;
+  const loadingMore = searchQuery.isFetchingNextPage;
+  const total = searchQuery.data?.pages[0]?.total ?? 0;
+  const pageCount = searchQuery.data?.pages.length ?? 0;
   const hasSearched = !!appliedParams;
+
+  // fetchNextPage를 ref에 보관 — Observer 의존성 배열에서 제외하기 위함
+  const fetchNextPageRef = useRef(searchQuery.fetchNextPage);
+  fetchNextPageRef.current = searchQuery.fetchNextPage;
 
   const message = useMemo(() => {
     if (submitError) return submitError;
@@ -311,8 +321,8 @@ export default function HomePage() {
         : "검색 중 오류가 발생했어요.";
     }
     if (artists.length === 0) return "조건에 맞는 작가가 없어요.";
-    return `총 ${artists.length}명의 작가를 찾았어요.`;
-  }, [submitError, appliedParams, loading, searchQuery.isError, searchQuery.error, artists.length]);
+    return `총 ${total}명의 작가를 찾았어요.`;
+  }, [submitError, appliedParams, loading, searchQuery.isError, searchQuery.error, artists.length, total]);
 
   const displayArtists = useMemo(() => {
     return artists.map((artist) => {
@@ -342,8 +352,9 @@ export default function HomePage() {
 
   const resultCountLabel = useMemo(() => {
     if (!hasSearched) return "실시간";
-    return `${displayArtists.length}명`;
-  }, [displayArtists.length, hasSearched]);
+    if (loading) return "...";
+    return `${total}명`;
+  }, [hasSearched, loading, total]);
 
   const pureVideoSearch = useMemo(
     () => isPureVideoSearch(selectedServices),
@@ -385,21 +396,49 @@ export default function HomePage() {
     };
   }, [date, selectedServices, region, price, appliedParams]);
 
+  // 스크롤 복원: 새 검색(isNewSearchRef)이면 즉시 취소, 아니면 첫 페이지 도착 후 1회 복원.
+  // 두 로직을 단일 effect로 합쳐 실행 순서 문제(stale cache hit 시 복원 선행) 방지.
   useEffect(() => {
+    if (isNewSearchRef.current) {
+      pendingScrollRestoreRef.current = null;
+      isNewSearchRef.current = false;
+      return;
+    }
     if (pendingScrollRestoreRef.current === null) return;
+    if (pageCount < 1) return;
+    if (scrollRestoredForParamsRef.current === appliedParams) return;
+    scrollRestoredForParamsRef.current = appliedParams;
 
     const targetY = pendingScrollRestoreRef.current;
     pendingScrollRestoreRef.current = null;
 
     const timer = window.setTimeout(() => {
-      window.scrollTo({
-        top: targetY,
-        behavior: "auto",
-      });
+      window.scrollTo({ top: targetY, behavior: "auto" });
     }, 80);
 
     return () => window.clearTimeout(timer);
-  }, [displayArtists.length]);
+  }, [pageCount, appliedParams]);
+
+  // 무한 스크롤: sentinel이 뷰포트 진입 시 다음 페이지 fetch (단일 진입점).
+  // fetchNextPage는 ref로 관리해 Observer 재등록을 hasNextPage 변경 시로만 한정.
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (
+          entry.isIntersecting &&
+          searchQuery.hasNextPage &&
+          !searchQuery.isFetching
+        ) {
+          void fetchNextPageRef.current();
+        }
+      },
+      { rootMargin: "300px" }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [searchQuery.hasNextPage, searchQuery.isFetching]);
 
   function toggleService(serviceName: string) {
     setSelectedServices((prev) => {
@@ -504,12 +543,14 @@ export default function HomePage() {
       setSubmitError("먼저 예식 날짜를 입력해주세요.");
       return;
     }
+    isNewSearchRef.current = true;
     setSubmitError("");
     setAppliedParams({
       date,
       region: region || undefined,
       price: price || undefined,
       services: selectedServices.length > 0 ? selectedServices : undefined,
+      seed: String(Math.floor(Math.random() * 99999) + 1),
     });
   }
 
@@ -1178,6 +1219,20 @@ export default function HomePage() {
                 </div>
               )}
             </div>
+
+            {searchQuery.hasNextPage && (
+              <div ref={sentinelRef} className="mt-8 flex justify-center h-12">
+                {loadingMore && (
+                  <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#7b5cf6] border-t-transparent" />
+                )}
+              </div>
+            )}
+
+            {hasSearched && !searchQuery.hasNextPage && total > 0 && !loading && (
+              <p className="mt-4 text-center text-sm text-[#9a93b4]">
+                조건에 맞는 작가 {total}명을 모두 확인했어요.
+              </p>
+            )}
           </div>
         </section>
       </div>

@@ -17,6 +17,7 @@ export const queryKeys = {
     region?: string;
     price?: string;
     services?: string[];
+    seed?: string;
   }) => ["search", params] as const,
 
   artistClosed: () => ["artist-closed"] as const,
