@@ -3,11 +3,18 @@
 import Link from "next/link";
 import { signOut } from "next-auth/react";
 import { usePathname } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { useMe } from "@/lib/queries/me";
 
 export default function Header() {
   const { data: me, isLoading: loading } = useMe();
   const pathname = usePathname();
+  const queryClient = useQueryClient();
+
+  function handleSignOut() {
+    queryClient.clear();
+    signOut({ callbackUrl: "/" });
+  }
 
   const displayName = me?.name || me?.email || "사용자";
 
@@ -81,7 +88,7 @@ export default function Header() {
 
               <button
                 type="button"
-                onClick={() => signOut({ callbackUrl: "/" })}
+                onClick={handleSignOut}
                 className={baseButtonClass}
               >
                 로그아웃

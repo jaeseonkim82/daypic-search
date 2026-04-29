@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useSearchArtists, type SearchParams } from "@/lib/queries/search";
 import { normalizeArray, joinLabel } from "@/lib/normalize";
 
@@ -40,11 +40,6 @@ type SavedArtist = {
 };
 
 type SearchPageState = {
-  date: string;
-  selectedServices: string[];
-  region: string;
-  price: string;
-  appliedParams: SearchParams | null;
   scrollY: number;
 };
 
@@ -160,15 +155,15 @@ function normalizeArtistFromApi(rawArtist: Record<string, unknown>): Artist {
     artist_type: String(rawArtist.artist_type ?? ""),
     video_portfolio_items: Array.isArray(rawArtist.video_portfolio_items)
       ? (rawArtist.video_portfolio_items as Array<Record<string, unknown>>).map(
-          (item) => ({
-            position: Number(item.position ?? 0),
-            link: String(item.link ?? ""),
-            thumb: String(item.thumb ?? ""),
-            style_tags: Array.isArray(item.style_tags)
-              ? (item.style_tags as unknown[]).map((t) => String(t))
-              : [],
-          })
-        )
+        (item) => ({
+          position: Number(item.position ?? 0),
+          link: String(item.link ?? ""),
+          thumb: String(item.thumb ?? ""),
+          style_tags: Array.isArray(item.style_tags)
+            ? (item.style_tags as unknown[]).map((t) => String(t))
+            : [],
+        })
+      )
       : [],
   };
 }
@@ -202,6 +197,7 @@ function isPureVideoSearch(selectedServices: string[]) {
 
 export default function HomePage() {
   const router = useRouter();
+  const searchParamsFromUrl = useSearchParams();
 
   const [date, setDate] = useState("");
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
@@ -226,6 +222,7 @@ export default function HomePage() {
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const isNewSearchRef = useRef(false);
   const scrollRestoredForParamsRef = useRef<SearchParams | null>(null);
+  const prefetchedPagesRef = useRef(new Set<number>());
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -249,14 +246,8 @@ export default function HomePage() {
     setRecentArtists(recent);
     setFavoriteArtists(favorite);
 
-    if (savedPageState) {
-      setDate(savedPageState.date || "");
-      setSelectedServices(savedPageState.selectedServices || []);
-      setRegion(savedPageState.region || "");
-      setPrice(savedPageState.price || "");
-      setAppliedParams(savedPageState.appliedParams ?? null);
-      pendingScrollRestoreRef.current =
-        typeof savedPageState.scrollY === "number" ? savedPageState.scrollY : 0;
+    if (savedPageState?.scrollY) {
+      pendingScrollRestoreRef.current = savedPageState.scrollY;
     }
 
     initialRestoreDoneRef.current = true;
@@ -353,7 +344,7 @@ export default function HomePage() {
   }, [selectedServices]);
 
   const resultCountLabel = useMemo(() => {
-    if (!hasSearched) return "실시간";
+    if (!hasSearched) return "";
     if (loading) return "...";
     return `${total}명`;
   }, [hasSearched, loading, total]);
@@ -365,24 +356,35 @@ export default function HomePage() {
 
   function saveSearchPageState(scrollY?: number) {
     if (typeof window === "undefined") return;
-    if (!initialRestoreDoneRef.current) return;
-
-    const nextState: SearchPageState = {
-      date,
-      selectedServices,
-      region,
-      price,
-      appliedParams,
-      scrollY: typeof scrollY === "number" ? scrollY : window.scrollY || 0,
-    };
-
-    writeStorage(window.sessionStorage, SEARCH_PAGE_STATE_KEY, nextState);
+    const y = typeof scrollY === "number" ? scrollY : window.scrollY || 0;
+    writeStorage(window.sessionStorage, SEARCH_PAGE_STATE_KEY, { scrollY: y });
   }
 
+  // URL 파라미터 → 폼 상태 + appliedParams 동기화
   useEffect(() => {
-    if (!initialRestoreDoneRef.current) return;
-    saveSearchPageState();
-  }, [date, selectedServices, region, price, appliedParams]);
+    const urlDate = searchParamsFromUrl.get("date") || "";
+    const urlRegion = searchParamsFromUrl.get("region") || "";
+    const urlPrice = searchParamsFromUrl.get("price") || "";
+    const urlServices = searchParamsFromUrl.getAll("service");
+    const urlSeed = searchParamsFromUrl.get("seed") || "";
+
+    setDate(urlDate);
+    setRegion(urlRegion);
+    setPrice(urlPrice);
+    setSelectedServices(urlServices);
+
+    if (urlDate) {
+      setAppliedParams({
+        date: urlDate,
+        region: urlRegion || undefined,
+        price: urlPrice || undefined,
+        services: urlServices.length > 0 ? urlServices : undefined,
+        seed: urlSeed || undefined,
+      });
+    } else {
+      setAppliedParams(null);
+    }
+  }, [searchParamsFromUrl]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -421,7 +423,7 @@ export default function HomePage() {
     return () => window.clearTimeout(timer);
   }, [pageCount, appliedParams]);
 
-  // 무한 스크롤: sentinel이 뷰포트 진입 시 다음 페이지 fetch (단일 진입점).
+  // 무한 스크롤: sentinel이 뷰포트 진입 시 다음 페이지 fetch (fallback).
   // fetchNextPage는 ref로 관리해 Observer 재등록을 hasNextPage 변경 시로만 한정.
   useEffect(() => {
     const el = sentinelRef.current;
@@ -441,6 +443,24 @@ export default function HomePage() {
     observer.observe(el);
     return () => observer.disconnect();
   }, [searchQuery.hasNextPage, searchQuery.isFetching]);
+
+  // 새 검색 시 프리페치 기록 초기화
+  useEffect(() => {
+    prefetchedPagesRef.current = new Set();
+  }, [appliedParams]);
+
+  // 프리페치: 새 페이지 도착 시 다음 페이지를 백그라운드에서 미리 로드.
+  // 중복 방지를 위해 pageCount별 1회만 실행. Observer는 fallback 역할.
+  useEffect(() => {
+    if (
+      pageCount === 0 ||
+      !searchQuery.hasNextPage ||
+      searchQuery.isFetching ||
+      prefetchedPagesRef.current.has(pageCount)
+    ) return;
+    prefetchedPagesRef.current.add(pageCount);
+    void fetchNextPageRef.current();
+  }, [pageCount, searchQuery.hasNextPage, searchQuery.isFetching]);
 
   function toggleService(serviceName: string) {
     setSelectedServices((prev) => {
@@ -545,15 +565,17 @@ export default function HomePage() {
       setSubmitError("먼저 예식 날짜를 입력해주세요.");
       return;
     }
-    isNewSearchRef.current = true;
     setSubmitError("");
-    setAppliedParams({
-      date,
-      region: region || undefined,
-      price: price || undefined,
-      services: selectedServices.length > 0 ? selectedServices : undefined,
-      seed: String(Math.floor(Math.random() * 99999) + 1),
-    });
+    isNewSearchRef.current = true;
+
+    const params = new URLSearchParams();
+    params.set("date", date);
+    if (region) params.set("region", region);
+    if (price) params.set("price", price);
+    selectedServices.forEach((s) => params.append("service", s));
+    params.set("seed", String(Math.floor(Math.random() * 99999) + 1));
+
+    router.push(`/search?${params.toString()}`);
   }
 
   function handleChecklistClick() {
