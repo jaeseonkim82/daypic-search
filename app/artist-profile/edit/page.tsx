@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useMe } from "@/lib/queries/me";
 import DbErrorBanner from "@/app/components/DbErrorBanner";
 
 const SERVICE_OPTIONS = [
@@ -70,16 +69,21 @@ const STYLE_OPTIONS = [
   "긴장 풀어주는",
 ];
 
-type ArtistResponse = {
-  id: string;
-  name?: string;
-  email?: string;
-  phone?: string;
-  price?: string;
-  service?: string[] | string;
-  region?: string[] | string;
-  style_keywords?: string[] | string;
-  updated_at?: string | null;
+type MeArtistResponse = {
+  ok: boolean;
+  dbError?: boolean;
+  error?: string;
+  artist?: {
+    id: string;
+    name: string;
+    email: string;
+    phone: string;
+    price: string;
+    service: string[] | string;
+    region: string[] | string;
+    style_keywords: string[] | string;
+    updated_at: string | null;
+  };
 };
 
 type FormState = {
@@ -249,10 +253,7 @@ export default function ArtistProfileEditPage() {
     styleKeywords: [],
   });
 
-  const { data: meData, isLoading: isMeLoading } = useMe();
-
   useEffect(() => {
-    if (isMeLoading) return;
     let ignore = false;
 
     async function init() {
@@ -260,50 +261,40 @@ export default function ArtistProfileEditPage() {
         setError("");
         setMessage("");
 
-        if (!meData || !meData.isLoggedIn) {
-          window.location.href = "/login";
-          return;
-        }
-
-        if (!ignore) {
-          setDbError(meData.dbError === true);
-        }
-
-        if (!meData.isArtist || !meData.artistId) {
-          window.location.href = "/artist-register";
-          return;
-        }
-
-        const currentArtistId = String(meData.artistId);
-
-        if (!ignore) {
-          setArtistId(currentArtistId);
-        }
-
-        setLoading(true);
-        const artistRes = await fetch(`/api/artists/${currentArtistId}`, {
-          method: "GET",
+        const res = await fetch("/api/me/artist", {
           credentials: "include",
           cache: "no-store",
         });
 
-        const artistData: ArtistResponse = await artistRes.json();
+        if (res.status === 401) {
+          window.location.href = "/login";
+          return;
+        }
 
-        if (!artistRes.ok) {
-          throw new Error("작가 정보를 불러오지 못했어.");
+        if (res.status === 403) {
+          window.location.href = "/artist-register";
+          return;
+        }
+
+        const data: MeArtistResponse = await res.json();
+
+        if (!res.ok || !data.artist) {
+          throw new Error(data.error ?? "작가 정보를 불러오지 못했어.");
         }
 
         if (!ignore) {
+          setDbError(data.dbError === true);
+          setArtistId(data.artist.id);
           setForm({
-            name: artistData.name || meData.name || "",
-            email: artistData.email || meData.email || "",
-            phone: artistData.phone || "",
-            price: artistData.price || "",
-            services: toArray(artistData.service),
-            regions: toArray(artistData.region),
-            styleKeywords: toArray(artistData.style_keywords),
+            name: data.artist.name,
+            email: data.artist.email,
+            phone: data.artist.phone,
+            price: data.artist.price,
+            services: toArray(data.artist.service),
+            regions: toArray(data.artist.region),
+            styleKeywords: toArray(data.artist.style_keywords),
           });
-          setExpectedUpdatedAt(artistData.updated_at ?? null);
+          setExpectedUpdatedAt(data.artist.updated_at);
         }
       } catch (err) {
         if (!ignore) {
@@ -325,7 +316,7 @@ export default function ArtistProfileEditPage() {
     return () => {
       ignore = true;
     };
-  }, [isMeLoading, meData]);
+  }, []);
 
   const isValid = useMemo(() => {
     return (
