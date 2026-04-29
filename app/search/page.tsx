@@ -307,7 +307,9 @@ export default function HomePage() {
 
   // fetchNextPage를 ref에 보관 — Observer 의존성 배열에서 제외하기 위함
   const fetchNextPageRef = useRef(searchQuery.fetchNextPage);
-  fetchNextPageRef.current = searchQuery.fetchNextPage;
+  useEffect(() => {
+    fetchNextPageRef.current = searchQuery.fetchNextPage;
+  });
 
   const message = useMemo(() => {
     if (submitError) return submitError;
