@@ -1,7 +1,7 @@
 import { getSupabaseAdmin, ArtistRow } from "@/lib/supabase";
 
 const ID_SAFE = /^[a-zA-Z0-9_-]+$/;
-const RECORD_ID = /^rec[a-zA-Z0-9]+$/;
+const RECORD_ID = /^rec[a-zA-Z0-9_-]+$/;
 const ARTIST_REC_HYBRID = /^artist_rec/;
 const USER_ID = /^user_[a-zA-Z0-9_-]+$/;
 const KAKAO_ID = /^\d+$/;
