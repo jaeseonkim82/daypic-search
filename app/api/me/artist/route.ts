@@ -5,11 +5,41 @@ import { serverError } from "@/lib/error-response";
 
 type RawToken = {
   artistId?: unknown;
+  kakaoId?: unknown;
   dbError?: unknown;
 };
 
 function pickString(v: unknown): string {
   return typeof v === "string" ? v : "";
+}
+
+const ARTIST_FIELDS =
+  "id, name, email, phone, price, service, region, style_keywords, updated_at";
+
+async function findArtistForToken(token: RawToken) {
+  const supabase = getSupabaseAdmin();
+
+  // 로그인 시점에 기록된 artistId가 있으면 PK 직접 조회
+  const artistId = pickString(token.artistId);
+  if (artistId) {
+    const { data } = await supabase
+      .from("artists")
+      .select(ARTIST_FIELDS)
+      .eq("id", artistId)
+      .maybeSingle();
+    if (data) return data;
+  }
+
+  // 로그인 후 작가 등록한 경우 토큰 갱신 전까지 artistId가 없음 → kakaoId 폴백
+  const kakaoId = pickString(token.kakaoId);
+  if (!kakaoId) return null;
+
+  const { data } = await supabase
+    .from("artists")
+    .select(ARTIST_FIELDS)
+    .eq("kakao_id", kakaoId)
+    .maybeSingle();
+  return data ?? null;
 }
 
 export async function GET(req: NextRequest) {
@@ -26,25 +56,12 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const artistId = pickString(token.artistId);
-    if (!artistId) {
+    const artist = await findArtistForToken(token);
+
+    if (!artist) {
       return NextResponse.json(
         { ok: false, error: "작가 계정이 아니야." },
         { status: 403 }
-      );
-    }
-
-    const supabase = getSupabaseAdmin();
-    const { data, error } = await supabase
-      .from("artists")
-      .select("id, name, email, phone, price, service, region, style_keywords, updated_at")
-      .eq("id", artistId)
-      .single();
-
-    if (error || !data) {
-      return NextResponse.json(
-        { ok: false, error: "작가 정보를 찾을 수 없어." },
-        { status: 404 }
       );
     }
 
@@ -53,15 +70,15 @@ export async function GET(req: NextRequest) {
         ok: true,
         dbError: token.dbError === true,
         artist: {
-          id: data.id,
-          name: data.name ?? "",
-          email: data.email ?? "",
-          phone: data.phone ?? "",
-          price: data.price ?? "",
-          service: data.service ?? [],
-          region: data.region ?? [],
-          style_keywords: data.style_keywords ?? [],
-          updated_at: data.updated_at ?? null,
+          id: artist.id,
+          name: artist.name ?? "",
+          email: artist.email ?? "",
+          phone: artist.phone ?? "",
+          price: artist.price ?? "",
+          service: artist.service ?? [],
+          region: artist.region ?? [],
+          style_keywords: artist.style_keywords ?? [],
+          updated_at: artist.updated_at ?? null,
         },
       },
       { headers: { "Cache-Control": "no-store" } }
