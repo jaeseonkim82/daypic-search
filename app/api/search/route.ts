@@ -177,7 +177,7 @@ export async function GET(request: Request) {
     const price = searchParams.get("price") || "";
     const services = searchParams.getAll("service");
     const seed = Math.max(1, parseInt(searchParams.get("seed") || "1"));
-    const limit = Math.min(Math.max(parseInt(searchParams.get("limit") || "12"), 1), 50);
+    const limit = Math.min(Math.max(parseInt(searchParams.get("limit") || "8"), 1), 50);
     const offset = Math.max(parseInt(searchParams.get("offset") || "0"), 0);
 
     const { artists, total } = await searchArtists(date, region, price, services, seed, limit, offset);

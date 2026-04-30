@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, ErrorBoundary } from "@suspensive/react";
-import { useSearchArtistsSuspense, type SearchParams } from "@/lib/queries/search";
+import { SEARCH_PAGE_SIZE, useSearchArtistsSuspense, type SearchParams } from "@/lib/queries/search";
 import { normalizeArray, joinLabel } from "@/lib/normalize";
 
 type VideoPortfolioItem = {
@@ -201,7 +202,7 @@ function isPureVideoSearch(selectedServices: string[]) {
 function SearchResultsSkeleton() {
   return (
     <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-      {Array.from({ length: 6 }).map((_, i) => (
+      {Array.from({ length: 8 }).map((_, i) => (
         <div key={i} className="h-[280px] animate-pulse rounded-[26px] bg-[#ede6f7]" />
       ))}
     </div>
@@ -262,10 +263,23 @@ function SearchResultsGrid({
     });
   }, [artists]);
 
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const triggerCardRef = useRef<HTMLElement | null>(null);
   const fetchNextPageRef = useRef(searchQuery.fetchNextPage);
-  const prefetchedPagesRef = useRef(new Set<number>());
   const scrollRestoredForParamsRef = useRef<SearchParams | null>(null);
+  const prefetchStateRef = useRef<{ paramsKey: string; pages: Set<number> }>({
+    paramsKey: "",
+    pages: new Set(),
+  });
+
+  // 마지막 페이지의 절반 지점 카드 인덱스 — 사용자가 이 카드까지 스크롤하면 다음 페이지 prefetch.
+  const triggerIndex = useMemo(
+    () => Math.max(0, displayArtists.length - Math.ceil(SEARCH_PAGE_SIZE / 2)),
+    [displayArtists.length],
+  );
+
+  const setTriggerCardEl = useCallback((el: HTMLElement | null) => {
+    triggerCardRef.current = el;
+  }, []);
 
   useEffect(() => {
     fetchNextPageRef.current = searchQuery.fetchNextPage;
@@ -296,38 +310,29 @@ function SearchResultsGrid({
     return () => window.clearTimeout(timer);
   }, [pageCount, params, pendingScrollRestoreRef, isNewSearchRef]);
 
-  // params 변경 시 프리페치 기록 초기화
+  // 사용자가 마지막 페이지의 절반 지점 카드(triggerIndex)에 도달하면 다음 페이지 prefetch.
+  // 페이지 N+1 도착 후 triggerIndex가 다음 페이지 절반으로 이동 → 다시 사용자 스크롤 대기.
+  // 결과: 사용자가 페이지 중간쯤 보고 있을 때 다음 페이지가 미리 와있음.
   useEffect(() => {
-    prefetchedPagesRef.current = new Set();
-  }, [params]);
-
-  // 무한 스크롤: sentinel이 뷰포트 진입 시 fetch (fallback).
-  useEffect(() => {
-    const el = sentinelRef.current;
+    const el = triggerCardRef.current;
     if (!el) return;
+    const key = JSON.stringify(params);
+    if (prefetchStateRef.current.paramsKey !== key) {
+      prefetchStateRef.current = { paramsKey: key, pages: new Set() };
+    }
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting && searchQuery.hasNextPage && !searchQuery.isFetching) {
-          void fetchNextPageRef.current();
-        }
+        if (!entry.isIntersecting) return;
+        if (!searchQuery.hasNextPage || searchQuery.isFetching) return;
+        if (prefetchStateRef.current.pages.has(pageCount)) return;
+        prefetchStateRef.current.pages.add(pageCount);
+        void fetchNextPageRef.current();
       },
-      { rootMargin: "300px" }
+      { rootMargin: "0px" }
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [searchQuery.hasNextPage, searchQuery.isFetching]);
-
-  // 프리페치 cascade: 새 페이지 도착 시 다음 페이지 미리 로드.
-  useEffect(() => {
-    if (
-      pageCount === 0 ||
-      !searchQuery.hasNextPage ||
-      searchQuery.isFetching ||
-      prefetchedPagesRef.current.has(pageCount)
-    ) return;
-    prefetchedPagesRef.current.add(pageCount);
-    void fetchNextPageRef.current();
-  }, [pageCount, searchQuery.hasNextPage, searchQuery.isFetching]);
+  }, [pageCount, triggerIndex, params, searchQuery.hasNextPage, searchQuery.isFetching]);
 
   return (
     <>
@@ -337,17 +342,21 @@ function SearchResultsGrid({
             아직 표시할 검색 결과가 없어.
           </div>
         ) : (
-          displayArtists.map((artist) => {
+          displayArtists.map((artist, index) => {
             const favorite = isFavorite(String(artist.id));
             const primaryVideoLink = getPrimaryVideoLink(artist);
+            const isTriggerCard = searchQuery.hasNextPage && index === triggerIndex;
 
             if (pureVideoSearch) {
               return (
-                <article
+                <Link
                   key={String(artist.id)}
+                  href={`/artists/${String(artist.id)}`}
+                  ref={isTriggerCard ? setTriggerCardEl : null}
                   onClick={() => onArtistClick(artist)}
-                  className="group cursor-pointer overflow-hidden rounded-[26px] border border-[#e8dff3] bg-white shadow-[0_8px_24px_rgba(60,50,100,0.06)] transition hover:-translate-y-[4px] hover:shadow-[0_22px_40px_rgba(60,50,100,0.12)]"
+                  className="group block cursor-pointer overflow-hidden rounded-[26px] border border-[#e8dff3] bg-white shadow-[0_8px_24px_rgba(60,50,100,0.06)] transition hover:-translate-y-[4px] hover:shadow-[0_22px_40px_rgba(60,50,100,0.12)]"
                 >
+                  <article>
                   <div className="relative aspect-[16/10] overflow-hidden bg-[#f1ebf8]">
                     <img
                       src={artist.videoCardThumb || artist.image}
@@ -364,7 +373,10 @@ function SearchResultsGrid({
                     </div>
                     <button
                       type="button"
-                      onClick={(e) => onFavoriteToggle(e, artist)}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        onFavoriteToggle(e, artist);
+                      }}
                       className={`absolute right-3 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full border backdrop-blur-sm ${favorite ? "border-[#ffbdd4] bg-[#ffedf5] text-[#ff5c9a]" : "border-white/70 bg-white/85 text-[#6a617f]"}`}
                       aria-label={favorite ? "찜 해제" : "찜하기"}
                     >
@@ -374,6 +386,7 @@ function SearchResultsGrid({
                       <button
                         type="button"
                         onClick={(e) => {
+                          e.preventDefault();
                           e.stopPropagation();
                           onScrollSave(window.scrollY);
                           onSaveRecent(artist);
@@ -396,14 +409,11 @@ function SearchResultsGrid({
                       ))}
                     </div>
                     <div className="mt-4 grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); onArtistClick(artist); }}
-                        className="h-10 rounded-[14px] bg-[#f3effb] text-[13px] font-semibold text-[#5b47c8]"
-                      >상세페이지</button>
+                      <span className="flex h-10 items-center justify-center rounded-[14px] bg-[#f3effb] text-[13px] font-semibold text-[#5b47c8]">상세페이지</span>
                       <button
                         type="button"
                         onClick={(e) => {
+                          e.preventDefault();
                           e.stopPropagation();
                           if (!primaryVideoLink) return;
                           onScrollSave(window.scrollY);
@@ -415,16 +425,20 @@ function SearchResultsGrid({
                       >{primaryVideoLink ? "영상 포트폴리오" : "준비중"}</button>
                     </div>
                   </div>
-                </article>
+                  </article>
+                </Link>
               );
             }
 
             return (
-              <article
+              <Link
                 key={String(artist.id)}
+                href={`/artists/${String(artist.id)}`}
+                ref={isTriggerCard ? setTriggerCardEl : null}
                 onClick={() => onArtistClick(artist)}
-                className="group cursor-pointer overflow-hidden rounded-[26px] border border-[#e8dff3] bg-white shadow-[0_8px_24px_rgba(60,50,100,0.06)] transition hover:-translate-y-[4px] hover:shadow-[0_22px_40px_rgba(60,50,100,0.12)]"
+                className="group block cursor-pointer overflow-hidden rounded-[26px] border border-[#e8dff3] bg-white shadow-[0_8px_24px_rgba(60,50,100,0.06)] transition hover:-translate-y-[4px] hover:shadow-[0_22px_40px_rgba(60,50,100,0.12)]"
               >
+                <article>
                 <div className="relative aspect-[16/10] overflow-hidden bg-[#f1ebf8]">
                   <img
                     src={artist.image}
@@ -438,7 +452,10 @@ function SearchResultsGrid({
                   />
                   <button
                     type="button"
-                    onClick={(e) => onFavoriteToggle(e, artist)}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      onFavoriteToggle(e, artist);
+                    }}
                     className={`absolute right-3 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full border backdrop-blur-sm ${favorite ? "border-[#ffbdd4] bg-[#ffedf5] text-[#ff5c9a]" : "border-white/70 bg-white/85 text-[#6a617f]"}`}
                     aria-label={favorite ? "찜 해제" : "찜하기"}
                   >
@@ -456,14 +473,11 @@ function SearchResultsGrid({
                     ))}
                   </div>
                   <div className="mt-4 grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); onArtistClick(artist); }}
-                      className="h-10 rounded-[14px] bg-[#f3effb] text-[13px] font-semibold text-[#5b47c8]"
-                    >상세페이지</button>
+                    <span className="flex h-10 items-center justify-center rounded-[14px] bg-[#f3effb] text-[13px] font-semibold text-[#5b47c8]">상세페이지</span>
                     <button
                       type="button"
                       onClick={(e) => {
+                        e.preventDefault();
                         e.stopPropagation();
                         if (!artist.portfolio) return;
                         onScrollSave(window.scrollY);
@@ -475,14 +489,15 @@ function SearchResultsGrid({
                     >{artist.portfolio ? "포트폴리오" : "준비중"}</button>
                   </div>
                 </div>
-              </article>
+                </article>
+              </Link>
             );
           })
         )}
       </div>
 
       {searchQuery.hasNextPage && (
-        <div ref={sentinelRef} className="mt-8 flex h-12 justify-center">
+        <div className="mt-8 flex h-12 justify-center">
           {searchQuery.isFetchingNextPage && (
             <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#7b5cf6] border-t-transparent" />
           )}
@@ -712,11 +727,12 @@ function SearchPageContent() {
     writeStorage(window.localStorage, DETAIL_STORAGE_KEY, nextCache);
   }
 
+  // Link 클릭 직전 사이드 이펙트만 처리 (스크롤 위치 저장 + 최근/캐시).
+  // navigation 자체는 Link href가 담당 → Next.js 정상 navigation으로 자동 scroll-to-top.
   function goToArtistDetail(artist: Artist) {
     saveSearchPageState(window.scrollY);
     saveRecentArtist(artist);
     saveArtistDetailCache(artist);
-    router.push(`/artists/${String(artist.id)}`);
   }
 
   function isFavorite(artistId: string) {

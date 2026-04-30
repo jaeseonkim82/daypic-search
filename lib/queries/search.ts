@@ -6,7 +6,7 @@ import { apiFetch } from "@/lib/api-client";
 import { queryKeys } from "@/lib/query-keys";
 import type { VideoPortfolioItem } from "./artist";
 
-export const SEARCH_PAGE_SIZE = 12;
+export const SEARCH_PAGE_SIZE = 8;
 
 export type SearchArtist = {
   id: string;
