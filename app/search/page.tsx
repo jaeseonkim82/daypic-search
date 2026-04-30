@@ -67,7 +67,6 @@ const PLACEHOLDER_IMAGE = "/placeholder-artist.svg";
 
 const RECENT_STORAGE_KEY = "daypic_recent_artists";
 const FAVORITE_STORAGE_KEY = "daypic_favorite_artists";
-const DETAIL_STORAGE_KEY = "daypic_artist_detail_cache";
 const SEARCH_PAGE_STATE_KEY = "daypic_search_page_state";
 
 function parseStorage<T>(storage: Storage, key: string, fallback: T): T {
@@ -702,37 +701,11 @@ function SearchPageContent() {
     writeStorage(window.localStorage, RECENT_STORAGE_KEY, nextRecent);
   }
 
-  function saveArtistDetailCache(artist: Artist) {
-    if (typeof window === "undefined") return;
-
-    const currentCache = parseStorage<Record<string, unknown>>(
-      window.localStorage,
-      DETAIL_STORAGE_KEY,
-      {}
-    );
-
-    const nextCache = {
-      ...currentCache,
-      [String(artist.id)]: {
-        ...artist,
-        id: String(artist.id),
-        style_keywords: artist.style_keywords || [],
-        openchat_url: artist.openchat_url || "",
-        portfolio_images: artist.portfolio_images ?? [],
-        artist_type: artist.artist_type || "",
-        video_portfolio_items: artist.video_portfolio_items || [],
-      },
-    };
-
-    writeStorage(window.localStorage, DETAIL_STORAGE_KEY, nextCache);
-  }
-
-  // Link 클릭 직전 사이드 이펙트만 처리 (스크롤 위치 저장 + 최근/캐시).
+  // Link 클릭 직전 사이드 이펙트만 처리 (스크롤 위치 저장 + 최근 본 작가 갱신).
   // navigation 자체는 Link href가 담당 → Next.js 정상 navigation으로 자동 scroll-to-top.
   function goToArtistDetail(artist: Artist) {
     saveSearchPageState(window.scrollY);
     saveRecentArtist(artist);
-    saveArtistDetailCache(artist);
   }
 
   function isFavorite(artistId: string) {

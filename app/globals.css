@@ -1,26 +1,75 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@theme {
+  /* ── Primary (숨고 컨셉 보라) ── */
+  --color-primary:         #7B5CF6;
+  --color-primary-hover:   #6743DC;
+  --color-primary-active:  #5632C0;
+  --color-primary-soft:    #F5F0FF;
+
+  /* ── Accent — 찜 하트 fill 한 곳에만 ── */
+  --color-accent-pink:      #D75EB6;
+  --color-accent-pink-soft: #FFF1F7;
+
+  /* ── Surface / Background ── */
+  --color-bg-base:     #FFFFFF;
+  --color-bg-subtle:   #F8F9FB;
+  --color-bg-card:     #FFFFFF;
+  --color-bg-disabled: #F2EFF7;
+
+  /* ── Foreground (Text) ── */
+  --color-fg-default:    #1A1530;  /* 대비 vs bg-base: 16.2:1 AAA */
+  --color-fg-muted:      #6B6585;  /* 5.81:1 AA */
+  --color-fg-subtle:     #9A94B0;  /* 3.15:1 — 메타·보조 라벨 전용 */
+  --color-fg-disabled:   #B8B3C8;
+  --color-fg-on-primary: #FFFFFF;
+
+  /* ── Border ── */
+  --color-border-default:  #EAE6F0;
+  --color-border-strong:   #D4CEE0;
+  --color-border-disabled: #E6E2EE;
+
+  /* ── Focus Ring ── */
+  --color-focus-ring:  #5632D4;
+  --focus-ring-width:  2px;
+  --focus-ring-offset: 2px;
+
+  /* ── Semantic State ── */
+  --color-success:      #14A87C;
+  --color-success-soft: #E8F7F1;
+  --color-warning:      #E38A00;
+  --color-warning-soft: #FFF4E0;
+  --color-danger:       #D94B4B;
+  --color-danger-soft:  #FDECEC;
+  --color-info:         #4A8BD6;
+  --color-info-soft:    #EAF2FB;
+
+  /* ── Overlay / Surface Glass ── */
+  --color-overlay-scrim: rgba(26, 21, 48, 0.48);
+  --color-overlay-soft:  rgba(26, 21, 48, 0.24);
+  --color-surface-glass: rgba(255, 255, 255, 0.88);
+
+  /* ── Radius ── */
+  --radius-card:   14px;
+  --radius-button: 12px;
+  --radius-chip:   9999px;
+
+  /* ── Shadow ── */
+  --shadow-card:       0 4px 16px rgba(26, 21, 48, 0.06);
+  --shadow-card-hover: 0 12px 28px rgba(26, 21, 48, 0.10);
+
+  /* ── Breakpoint ── */
+  --breakpoint-pc: 800px;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* ── 컨테이너 ── */
+.container-primary {
+  max-width: 1400px;
+  margin-inline: auto;
+  padding-inline: clamp(16px, 4vw, 32px);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--color-bg-base);
+  color: var(--color-fg-default);
 }

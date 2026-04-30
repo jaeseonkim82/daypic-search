@@ -116,7 +116,7 @@ Fisher-Yates 셔플 후 반환
 
 ### 클라이언트 상태 관리
 
-- **localStorage**: `daypic_recent_artists`, `daypic_favorite_artists`, `daypic_artist_detail_cache`
+- **localStorage**: `daypic_recent_artists`, `daypic_favorite_artists`
 - **sessionStorage**: `daypic_search_page_state` (검색 필터 + 스크롤 위치 복원)
 - Redux/Zustand 없이 React 훅 + 브라우저 스토리지만 사용
 

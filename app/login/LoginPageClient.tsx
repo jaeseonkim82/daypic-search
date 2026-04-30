@@ -48,9 +48,7 @@ export default function LoginPageClient() {
             카카오로 시작하기
           </button>
 
-          <div className="mt-5 rounded-[20px] border border-[#eee6f8] bg-[#faf8fe] px-4 py-4 text-[14px] leading-6 text-[#726a8e]">
-            이메일 로그인은 추후 업데이트 예정이에요.
-          </div>
+    
 
           <div className="mt-7 flex flex-wrap gap-3">
             <Link
