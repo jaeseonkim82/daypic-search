@@ -1,4 +1,5 @@
 import * as Sentry from "@sentry/nextjs";
+import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import type { AuthSession } from "@/lib/auth-helpers";
 
@@ -34,6 +35,42 @@ export function captureApiError(
     tags: { endpoint },
     extra,
   });
+}
+
+const IS_PRODUCTION = process.env.NODE_ENV === "production";
+
+export function captureAndRespond(
+  error: unknown,
+  endpoint: string,
+  userMessage: string,
+  extra?: Record<string, unknown> & { session?: AuthSession | null }
+): NextResponse {
+  const { session, ...rest } = extra ?? {};
+
+  Sentry.captureException(error, {
+    tags: { endpoint },
+    extra: {
+      ...rest,
+      response_message: userMessage,
+      http_status: 500,
+    },
+    user: session?.kakaoId
+      ? {
+          id: session.kakaoId,
+          username: session.name,
+          email: session.email,
+          data: { artistId: session.artistId },
+        }
+      : undefined,
+  });
+
+  const detail = error instanceof Error ? error.message : String(error);
+  console.error(`[${endpoint}]`, detail);
+
+  const body: Record<string, unknown> = { ok: false, error: userMessage };
+  if (!IS_PRODUCTION) body.detail = detail;
+
+  return NextResponse.json(body, { status: 500 });
 }
 
 export async function withSentryContext<T>(

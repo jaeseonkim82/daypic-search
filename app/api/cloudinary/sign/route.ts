@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { getAuthSession } from "@/lib/auth-helpers";
 import { findArtistRow } from "@/lib/artist-lookup";
-import { serverError } from "@/lib/error-response";
-import { withSentryContext, captureApiError } from "@/lib/sentry-utils";
+import { captureAndRespond } from "@/lib/sentry-utils";
 import {
   checkRateLimit,
   rateLimitedResponse,
@@ -17,7 +16,8 @@ const ALLOWED_FOLDERS = new Set([
 ]);
 
 export async function POST(request: NextRequest) {
-  const session = await getAuthSession(request);
+  let step = "parse_body";
+  let artistId: string | undefined;
 
   let requestedFolder = "daypic/artists/representative";
   try {
@@ -29,79 +29,80 @@ export async function POST(request: NextRequest) {
     // body 없으면 기본값 사용
   }
 
-  return withSentryContext(
-    request,
-    "POST /api/cloudinary/sign",
-    session,
-    { folder: requestedFolder, kakaoId: session.kakaoId },
-    async () => {
-      try {
-        if (!session.kakaoId) {
-          return NextResponse.json({ error: "로그인이 필요해." }, { status: 401 });
-        }
+  try {
+    step = "get_session";
+    const session = await getAuthSession(request);
 
-        const artist = await findArtistRow(session.kakaoId);
-        if (!artist) {
-          return NextResponse.json(
-            { error: "작가 등록 후 이용할 수 있어." },
-            { status: 403 }
-          );
-        }
-
-        const rl = await checkRateLimit(
-          rateLimiters.cloudinarySign,
-          `artist:${artist.id}`
-        );
-        if (!rl.ok) return rateLimitedResponse(rl);
-
-        const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
-        const apiKey = process.env.CLOUDINARY_API_KEY;
-        const apiSecret = process.env.CLOUDINARY_API_SECRET;
-
-        if (!cloudName || !apiKey || !apiSecret) {
-          return NextResponse.json(
-            { error: "Cloudinary 환경변수가 설정되지 않았어." },
-            { status: 500 }
-          );
-        }
-
-        const timestamp = Math.floor(Date.now() / 1000).toString();
-        const folder = requestedFolder;
-        const randomSuffix = crypto.randomBytes(8).toString("hex");
-        const publicId = `${artist.id}_${timestamp}_${randomSuffix}`;
-
-        const paramsToSign = [
-          `folder=${folder}`,
-          `public_id=${publicId}`,
-          `timestamp=${timestamp}`,
-        ]
-          .sort()
-          .join("&");
-        const signature = crypto
-          .createHash("sha1")
-          .update(paramsToSign + apiSecret)
-          .digest("hex");
-
-        return NextResponse.json({
-          cloudName,
-          apiKey,
-          timestamp,
-          folder,
-          publicId,
-          signature,
-        });
-      } catch (error) {
-        captureApiError(error, "POST /api/cloudinary/sign", {
-          kakaoId: session.kakaoId,
-          artistId: session.artistId,
-          folder: requestedFolder,
-        });
-        return serverError(
-          "POST /api/cloudinary/sign",
-          error,
-          "Cloudinary 서명 생성 중 오류가 발생했어."
-        );
-      }
+    if (!session.kakaoId) {
+      return NextResponse.json({ error: "로그인이 필요해." }, { status: 401 });
     }
-  );
+
+    step = "find_artist";
+    const artist = await findArtistRow(session.kakaoId);
+    if (!artist) {
+      return NextResponse.json(
+        { error: "작가 등록 후 이용할 수 있어." },
+        { status: 403 }
+      );
+    }
+    artistId = artist.id;
+
+    step = "rate_limit";
+    const rl = await checkRateLimit(
+      rateLimiters.cloudinarySign,
+      `artist:${artist.id}`
+    );
+    if (!rl.ok) return rateLimitedResponse(rl);
+
+    step = "check_env";
+    const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+    const apiKey = process.env.CLOUDINARY_API_KEY;
+    const apiSecret = process.env.CLOUDINARY_API_SECRET;
+
+    if (!cloudName || !apiKey || !apiSecret) {
+      return NextResponse.json(
+        { error: "Cloudinary 환경변수가 설정되지 않았어." },
+        { status: 500 }
+      );
+    }
+
+    step = "generate_signature";
+    const timestamp = Math.floor(Date.now() / 1000).toString();
+    const folder = requestedFolder;
+    const randomSuffix = crypto.randomBytes(8).toString("hex");
+    const publicId = `${artist.id}_${timestamp}_${randomSuffix}`;
+
+    const paramsToSign = [
+      `folder=${folder}`,
+      `public_id=${publicId}`,
+      `timestamp=${timestamp}`,
+    ]
+      .sort()
+      .join("&");
+    const signature = crypto
+      .createHash("sha1")
+      .update(paramsToSign + apiSecret)
+      .digest("hex");
+
+    return NextResponse.json({
+      cloudName,
+      apiKey,
+      timestamp,
+      folder,
+      publicId,
+      signature,
+    });
+  } catch (error) {
+    return captureAndRespond(
+      error,
+      "POST /api/cloudinary/sign",
+      "Cloudinary 서명 생성 중 오류가 발생했어.",
+      {
+        failed_at: step,
+        artist_id: artistId,
+        folder: requestedFolder,
+        request_payload: { folder: requestedFolder },
+      }
+    );
+  }
 }
