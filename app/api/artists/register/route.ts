@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { getAuthSession } from "@/lib/auth-helpers";
 import { serverError } from "@/lib/error-response";
+import { captureApiError } from "@/lib/sentry-utils";
 import { makeRecordId } from "@/lib/ids";
 import {
   checkRateLimit,
@@ -203,6 +204,7 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
+    captureApiError(error, "POST /api/artists/register");
     return serverError(
       "POST /api/artists/register",
       error,

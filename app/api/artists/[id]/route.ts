@@ -3,6 +3,7 @@ import { getSupabaseAdmin, ArtistRow } from "@/lib/supabase";
 import { findArtistRow } from "@/lib/artist-lookup";
 import { getAuthSession, requireArtistOwner } from "@/lib/auth-helpers";
 import { serverError } from "@/lib/error-response";
+import { captureApiError } from "@/lib/sentry-utils";
 
 function sanitizeString(value: unknown) {
   if (typeof value !== "string") return "";
@@ -116,6 +117,7 @@ export async function GET(
     ]);
     return NextResponse.json(normalizeArtist(row, videoItems, { isOwner }));
   } catch (error) {
+    captureApiError(error, "GET /api/artists/[id]");
     return serverError(
       "GET /api/artists/[id]",
       error,
@@ -209,6 +211,9 @@ export async function PATCH(
       artist: normalizeArtist(data as ArtistRow, items, { isOwner: true }),
     });
   } catch (error) {
+    captureApiError(error, "PATCH /api/artists/[id]", {
+      artistId: (await context.params).id,
+    });
     return serverError(
       "PATCH /api/artists/[id]",
       error,

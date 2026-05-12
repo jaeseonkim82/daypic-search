@@ -12,6 +12,7 @@
     "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
+    "@sentry/nextjs": "^10.52.0",
     "@supabase/supabase-js": "^2.104.0",
     "@suspensive/react": "^3.20.3",
     "@suspensive/react-query": "^3.20.3",

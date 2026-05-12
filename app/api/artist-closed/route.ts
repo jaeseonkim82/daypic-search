@@ -4,6 +4,7 @@ import { getAuthSession } from "@/lib/auth-helpers";
 import { findArtistRow } from "@/lib/artist-lookup";
 import { formatDateToYMD } from "@/lib/date-utils";
 import { serverError } from "@/lib/error-response";
+import { captureApiError } from "@/lib/sentry-utils";
 import { makeRecordId } from "@/lib/ids";
 import {
   checkRateLimit,
@@ -61,6 +62,7 @@ export async function GET(request: NextRequest) {
       })),
     });
   } catch (error) {
+    captureApiError(error, "GET /api/artist-closed");
     return serverError(
       "GET /api/artist-closed",
       error,
@@ -140,6 +142,7 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
+    captureApiError(error, "POST /api/artist-closed");
     return serverError(
       "POST /api/artist-closed",
       error,
@@ -201,6 +204,7 @@ export async function DELETE(request: NextRequest) {
       already_deleted: alreadyDeleted,
     });
   } catch (error) {
+    captureApiError(error, "DELETE /api/artist-closed");
     return serverError(
       "DELETE /api/artist-closed",
       error,

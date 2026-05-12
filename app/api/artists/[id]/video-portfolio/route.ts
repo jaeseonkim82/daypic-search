@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireArtistOwner } from "@/lib/auth-helpers";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { serverError } from "@/lib/error-response";
+import { captureApiError } from "@/lib/sentry-utils";
 
 function sanitizeString(value: unknown) {
   if (typeof value !== "string") return "";
@@ -147,6 +148,9 @@ export async function PATCH(
       recordId: artistRow.id,
     });
   } catch (error) {
+    captureApiError(error, "PATCH /api/artists/[id]/video-portfolio", {
+      artistId: (await context.params).id,
+    });
     return serverError(
       "PATCH video-portfolio",
       error,

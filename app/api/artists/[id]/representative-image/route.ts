@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireArtistOwner } from "@/lib/auth-helpers";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { serverError } from "@/lib/error-response";
+import { captureApiError } from "@/lib/sentry-utils";
 
 export async function PATCH(
   request: NextRequest,
@@ -58,6 +59,9 @@ export async function PATCH(
       imageUrl: cleanedImageUrl,
     });
   } catch (error) {
+    captureApiError(error, "PATCH /api/artists/[id]/representative-image", {
+      artistId: (await context.params).id,
+    });
     return serverError(
       "PATCH representative-image",
       error,
