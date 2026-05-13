@@ -111,10 +111,10 @@ export default function ArtistDashboardPage() {
                     수정하실 수 있습니다.
                   </p>
                   <Link
-                    href="/artist-register"
+                    href="/artist-profile/edit"
                     className="mt-5 inline-flex h-[48px] w-full items-center justify-center rounded-[16px] bg-[#6948f5] text-[15px] font-bold text-white transition hover:bg-[#5636df]"
                   >
-                    정보 등록하러 가기
+                    정보 수정하러 가기
                   </Link>
                 </article>
 
@@ -292,10 +292,10 @@ export default function ArtistDashboardPage() {
 
           <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
             <Link
-              href="/artist-register"
+              href="/artist-profile/edit"
               className="inline-flex h-[48px] items-center justify-center rounded-[16px] border border-[#dccff2] bg-white px-5 text-[14px] font-semibold text-[#4d426b] transition-all duration-200 hover:border-[#2c2448] hover:bg-[#2c2448] hover:text-white active:border-[#2c2448] active:bg-[#2c2448] active:text-white"
             >
-              작가 정보 등록하기
+              작가 정보 수정하기
             </Link>
             <Link
               href="/artist-calendar"

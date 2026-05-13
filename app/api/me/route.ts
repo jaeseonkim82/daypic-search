@@ -15,7 +15,7 @@ type Token = {
 async function findArtistByToken(token: Token) {
   const supabase = getSupabaseAdmin();
 
-  // token.artistId가 있으면 PK로 직접 조회 (race-safe, 1 query)
+  // token.artistId가 있으면 PK로 직접 조회 (빠르고 정확)
   if (token.artistId) {
     const { data, error } = await supabase
       .from("artists")
@@ -23,18 +23,21 @@ async function findArtistByToken(token: Token) {
       .eq("id", token.artistId)
       .maybeSingle();
     if (error) {
-      console.error("Supabase artist id 조회 실패:", error.message);
-      return null;
+      console.error("Supabase artist id 조회 실패 — kakao_id로 폴백:", error.message);
+      // id 조회 실패 시 kakao_id로 폴백 (Supabase 불안정 시 isArtist가 false로 잘못 반환되는 버그 방지)
+    } else if (data) {
+      return data;
     }
-    if (data) return data;
   }
 
-  // 아직 가입 직후 토큰에 artistId가 없는 경우에만 kakao_id로 폴백
+  // artistId 없거나 id 조회 실패 시 kakao_id로 폴백
   if (!token.kakaoId) return null;
   const { data, error } = await supabase
     .from("artists")
     .select("id, name, email")
     .eq("kakao_id", token.kakaoId)
+    .order("created_at", { ascending: true })
+    .limit(1)
     .maybeSingle();
 
   if (error) {
