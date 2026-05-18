@@ -44,8 +44,8 @@ type SavedArtist = {
 type SearchPageState = {
   scrollY: number;
 };
-
-const SERVICES = ["본식스냅", "서브스냅", "영상촬영", "아이폰스냅", "돌스냅", "야외촬영", "스튜디오촬영", '해외촬영', '커플스냅'];
+ 
+const SERVICES = ["본식스냅", "서브스냅", "영상촬영", "아이폰스냅", "돌스냅", "야외스냅", "스튜디오촬영", '해외촬영', '커플스냅'];
 
 const REGIONS = [
   "서울",

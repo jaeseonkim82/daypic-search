@@ -214,7 +214,7 @@ export default function HomePage() {
 
                   <p className="mt-4 text-[15px] leading-[1.7] text-[#6b6585]">
                     데이픽은 날짜 중심 검색을 기반으로, 본식스냅, 영상촬영,
-                    아이폰스냅, 돌스냅, 야외촬영, 스튜디오촬영 등 다양한 촬영
+                    아이폰스냅, 돌스냅, 야외스냅, 스튜디오촬영 등 다양한 촬영
                     서비스를 함께 탐색하실 수 있도록 준비하고 있습니다.
                   </p>
                 </div>
@@ -227,7 +227,7 @@ export default function HomePage() {
                     { icon: "📱", title: "아이폰스냅", desc: "더 자연스럽고 가벼운 촬영" },
                     { icon: "🎂", title: "돌스냅", desc: "첫 생일의 소중한 순간 기록" },
                     { icon: "🐶", title: "애견스냅", desc: "반려견과 함께하는 특별한 촬영" },
-                    { icon: "🌿", title: "야외촬영", desc: "자연 속에서 담는 감성 촬영" },
+                    { icon: "🌿", title: "야외스냅", desc: "자연 속에서 담는 감성 촬영" },
                     { icon: "🏛️", title: "스튜디오촬영", desc: "컨셉에 맞춘 연출 촬영" },
                   ].map((item, i) => (
                     <div
